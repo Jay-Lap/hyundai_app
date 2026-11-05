@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.hyundiaboysranger.ui.theme.HyundiaBoysRangerTheme
 
 
@@ -47,6 +48,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun DrivingHelperApp() {
     var currentScreen by rememberSaveable { mutableStateOf("home") }
+    var isLargeText by rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -57,7 +59,8 @@ fun DrivingHelperApp() {
     ) {
         Text(
             text = "안전 운전 도우미",
-            style = MaterialTheme.typography.headlineLarge
+            style = MaterialTheme.typography.headlineLarge,
+            fontSize = if (isLargeText) 42.sp else 32.sp
         )
 
         when (currentScreen) {
@@ -114,9 +117,21 @@ fun DrivingHelperApp() {
                     style = MaterialTheme.typography.headlineMedium
                 )
                 Text(
-                    text = "설정 기능을 준비하고 있어요.",
+                    text = "홈 화면 제목 크기",
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Text(
+                    text = if (isLargeText) "현재: 크게" else "현재: 보통",
                     style = MaterialTheme.typography.bodyLarge
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Button(onClick = { isLargeText = false }) {
+                        Text("보통")
+                    }
+                    Button(onClick = { isLargeText = true }) {
+                        Text("크게")
+                    }
+                }
                 OutlinedButton(onClick = { currentScreen = "home" }) {
                     Text("홈으로")
                 }
