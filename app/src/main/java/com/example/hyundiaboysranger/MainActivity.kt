@@ -18,8 +18,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,9 +27,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Density
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import com.example.hyundiaboysranger.ui.theme.HyundiaBoysRangerTheme
 
 class MainActivity : ComponentActivity() {
@@ -55,11 +55,11 @@ fun DrivingHelperApp() {
         settingsRepository.save(updated)
     }
 
-    val systemDensity = LocalDensity.current
-    val textScale = if (settings.largeTitle) 1.25f else 1f
-    CompositionLocalProvider(
-        LocalDensity provides Density(systemDensity.density, systemDensity.fontScale * textScale)
-    ) {
+    val baseTypography = MaterialTheme.typography
+    val appTypography = remember(baseTypography, settings.largeTitle) {
+        if (settings.largeTitle) baseTypography.enlarged() else baseTypography
+    }
+    MaterialTheme(typography = appTypography) {
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
@@ -131,6 +131,29 @@ fun DrivingHelperApp() {
         }
     }
 }
+
+private fun TextStyle.enlarged(): TextStyle = copy(
+    fontSize = if (fontSize.isSpecified) fontSize * 1.4f else fontSize,
+    lineHeight = if (lineHeight.isSpecified) lineHeight * 1.4f else lineHeight,
+)
+
+private fun Typography.enlarged(): Typography = copy(
+    displayLarge = displayLarge.enlarged(),
+    displayMedium = displayMedium.enlarged(),
+    displaySmall = displaySmall.enlarged(),
+    headlineLarge = headlineLarge.enlarged(),
+    headlineMedium = headlineMedium.enlarged(),
+    headlineSmall = headlineSmall.enlarged(),
+    titleLarge = titleLarge.enlarged(),
+    titleMedium = titleMedium.enlarged(),
+    titleSmall = titleSmall.enlarged(),
+    bodyLarge = bodyLarge.enlarged(),
+    bodyMedium = bodyMedium.enlarged(),
+    bodySmall = bodySmall.enlarged(),
+    labelLarge = labelLarge.enlarged(),
+    labelMedium = labelMedium.enlarged(),
+    labelSmall = labelSmall.enlarged(),
+)
 
 @Composable
 private fun ScreenTitle(title: String, description: String) {
