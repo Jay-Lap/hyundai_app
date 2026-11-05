@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -19,27 +20,20 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.hyundiaboysranger.ui.theme.HyundiaBoysRangerTheme
 
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         setContent {
             HyundiaBoysRangerTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    DrivingHelperApp()
-                }
+                Surface(modifier = Modifier.fillMaxSize()) { DrivingHelperApp() }
             }
         }
     }
@@ -47,95 +41,104 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun DrivingHelperApp() {
-    var currentScreen by rememberSaveable { mutableStateOf("home") }
+    var screen by rememberSaveable { mutableStateOf("home") }
+    var profile by rememberSaveable { mutableStateOf("직접 설정") }
     var isLargeText by rememberSaveable { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(32.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Text(
-            text = "안전 운전 도우미",
+            "안전 운전 도우미",
             style = MaterialTheme.typography.headlineLarge,
             fontSize = if (isLargeText) 42.sp else 32.sp
         )
+        Text("화면 시안 · 차량과 내비게이션이 연결되지 않았어요", style = MaterialTheme.typography.bodyLarge)
 
-        when (currentScreen) {
+        when (screen) {
             "home" -> {
-                Text(
-                    text = "편안한 운전을 위한 안내를 준비해요.",
-                    style = MaterialTheme.typography.titleLarge
-                )
-
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "차량 연결",
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                        Text(
-                            text = "차량 정보 연결은 아직 준비 중이에요.",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
+                InfoCard("현재 사용자", "$profile · 설정은 이 화면 시안에서만 적용돼요.")
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    NavButton("경로 준비") { screen = "route" }
+                    NavButton("차량 조작 배우기") { screen = "learn" }
                 }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Button(onClick = { currentScreen = "driving" }) {
-                        Text("주행 안내")
-                    }
-
-                    OutlinedButton(onClick = { currentScreen = "settings" }) {
-                        Text("설정")
-                    }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    NavButton("경고등 도움말") { screen = "warnings" }
+                    NavButton("내 복습") { screen = "review" }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    NavButton("사용자 유형") { screen = "profile" }
+                    NavButton("설정") { screen = "settings" }
                 }
             }
-
-            "driving" -> {
-                Text(
-                    text = "주행 안내",
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                Text(
-                    text = "주행 안내 기능을 준비하고 있어요.",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                OutlinedButton(onClick = { currentScreen = "home" }) {
-                    Text("홈으로")
+            "profile" -> {
+                ScreenTitle("사용자 유형", "선택한 유형을 화면에 표시해요. 프리셋 자동 적용은 준비 중이에요.")
+                listOf("고령자", "초보자", "직접 설정").forEach { option ->
+                    OutlinedButton(onClick = { profile = option }, modifier = Modifier.sizeIn(minHeight = 56.dp)) {
+                        Text(if (profile == option) "$option · 선택됨" else option)
+                    }
                 }
+                BackButton { screen = "home" }
             }
-
+            "route" -> {
+                ScreenTitle("경로 준비", "출발 전에 경로와 운전 부담 요소를 살펴보는 공간이에요.")
+                InfoCard("경로 정보 없음", "목적지 검색과 경로 비교는 내비게이션 연동 후 사용할 수 있어요.")
+                Text("큰길 선호와 고속도로 선호는 별도로 설정할 예정이에요.")
+                BackButton { screen = "home" }
+            }
+            "learn" -> {
+                ScreenTitle("차량 조작 배우기", "공조, 김서림 제거와 와이퍼 조작을 연습할 수 있어요.")
+                InfoCard("실습 잠김", "주차 상태와 차량 정보 확인 기능을 연결한 뒤 사용할 수 있어요.")
+                BackButton { screen = "home" }
+            }
+            "warnings" -> {
+                ScreenTitle("경고등 도움말", "차량이 보내는 경고의 의미와 대응 방법을 확인하는 공간이에요.")
+                InfoCard("차량 정보 미연결", "실제 경고를 확인하고 있지 않아요. 차량의 경고 표시와 공식 매뉴얼을 확인해 주세요.")
+                BackButton { screen = "home" }
+            }
+            "review" -> {
+                ScreenTitle("내 복습", "어려웠던 조작과 완료하지 못한 연습을 다시 살펴봐요.")
+                InfoCard("기록 없음", "복습 기록 저장과 복원은 아직 연결되지 않았어요.")
+                BackButton { screen = "home" }
+            }
             "settings" -> {
-                Text(
-                    text = "설정",
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                Text(
-                    text = "홈 화면 제목 크기",
-                    style = MaterialTheme.typography.titleLarge
-                )
-                Text(
-                    text = if (isLargeText) "현재: 크게" else "현재: 보통",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Button(onClick = { isLargeText = false }) {
-                        Text("보통")
-                    }
-                    Button(onClick = { isLargeText = true }) {
-                        Text("크게")
-                    }
+                ScreenTitle("설정", "현재는 홈 화면 제목 크기만 바꿀 수 있어요.")
+                Text("홈 화면 제목 크기 · ${if (isLargeText) "크게" else "보통"}")
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(onClick = { isLargeText = false }) { Text("보통") }
+                    Button(onClick = { isLargeText = true }) { Text("크게") }
                 }
-                OutlinedButton(onClick = { currentScreen = "home" }) {
-                    Text("홈으로")
-                }
+                InfoCard("준비 중", "화면 대비와 테마, 음성 안내, 주행 보조 설정은 추후 연결할 예정이에요.")
+                Text("선택한 설정은 이 화면 시안의 상태로만 유지되며 영구 저장되지 않아요.")
+                BackButton { screen = "home" }
             }
         }
     }
+}
+
+@Composable
+private fun ScreenTitle(title: String, description: String) {
+    Text(title, style = MaterialTheme.typography.headlineMedium)
+    Text(description, style = MaterialTheme.typography.bodyLarge)
+}
+
+@Composable
+private fun InfoCard(title: String, description: String) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = MaterialTheme.typography.titleLarge)
+            Text(description, style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+}
+
+@Composable
+private fun NavButton(label: String, onClick: () -> Unit) {
+    Button(onClick = onClick, modifier = Modifier.sizeIn(minHeight = 56.dp)) { Text(label) }
+}
+
+@Composable
+private fun BackButton(onClick: () -> Unit) {
+    OutlinedButton(onClick = onClick, modifier = Modifier.sizeIn(minHeight = 56.dp)) { Text("홈으로") }
 }
