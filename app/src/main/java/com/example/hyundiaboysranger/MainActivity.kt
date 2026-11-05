@@ -20,6 +20,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,11 +69,12 @@ fun DrivingHelperApp() {
                 "안전 운전 도우미",
                 style = MaterialTheme.typography.headlineLarge
             )
-            Text("화면 시안 · 차량과 내비게이션이 연결되지 않았어요", style = MaterialTheme.typography.bodyLarge)
+            Text("내비게이션 기능은 아직 연결되지 않았어요", style = MaterialTheme.typography.bodyLarge)
 
             when (screen) {
                 "home" -> {
                     InfoCard("현재 사용자", "${settings.profile.label} · 사용자 유형과 글자 크기를 기기에 저장해요.")
+                    NavButton("운전석 문 상태") { screen = "door" }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         NavButton("경로 준비") { screen = "route" }
                         NavButton("차량 조작 배우기") { screen = "learn" }
@@ -95,6 +97,7 @@ fun DrivingHelperApp() {
                     }
                     BackButton { screen = "home" }
                 }
+                "door" -> DoorStatusScreen(onBack = { screen = "home" })
                 "route" -> {
                     ScreenTitle("경로 준비", "출발 전에 경로와 운전 부담 요소를 살펴보는 공간이에요.")
                     InfoCard("경로 정보 없음", "목적지 검색과 경로 비교는 내비게이션 연동 후 사용할 수 있어요.")
@@ -130,6 +133,23 @@ fun DrivingHelperApp() {
             }
         }
     }
+}
+
+@Composable
+private fun DoorStatusScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val reader = remember(context) { VehicleDoorReader(context) }
+    var result by remember { mutableStateOf("운전석 문 상태를 아직 조회하지 않았어요.") }
+
+    DisposableEffect(reader) {
+        onDispose { reader.close() }
+    }
+
+    ScreenTitle("운전석 문 상태", "주차 중 조회 버튼을 눌러 상태를 확인해요.")
+    InfoCard("문 열림·닫힘", result)
+    Text("마지막으로 조회한 값이에요. 잠금 상태는 확인하지 않으며, 현재 상태와 다를 수 있어요.")
+    Button(onClick = { reader.read { result = it } }) { Text("문 상태 조회") }
+    BackButton(onClick = onBack)
 }
 
 private fun TextStyle.enlarged(): TextStyle = copy(

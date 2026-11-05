@@ -36,7 +36,7 @@ class ProfileTextSizeTest {
         composeRule.onNodeWithText("사용자 유형").performClick()
         composeRule.onNode(hasClickAction() and hasText("초보자", substring = true)).performClick()
         val normal = composeRule.onNodeWithText("안전 운전 도우미").getUnclippedBoundsInRoot()
-        val bodyText = "화면 시안 · 차량과 내비게이션이 연결되지 않았어요"
+        val bodyText = "내비게이션 기능은 아직 연결되지 않았어요"
         val normalBody = composeRule.onNodeWithText(bodyText).getUnclippedBoundsInRoot()
 
         composeRule.onNode(hasClickAction() and hasText("고령자", substring = true)).performClick()
