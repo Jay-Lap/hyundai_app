@@ -15,7 +15,13 @@ enum class UserProfile(val key: String, val label: String) {
 data class UserSettings(
     val profile: UserProfile = UserProfile.CUSTOM,
     val largeTitle: Boolean = false,
-)
+) {
+    fun withProfile(selected: UserProfile): UserSettings = when (selected) {
+        UserProfile.SENIOR -> copy(profile = selected, largeTitle = true)
+        UserProfile.BEGINNER -> copy(profile = selected, largeTitle = false)
+        UserProfile.CUSTOM -> copy(profile = selected)
+    }
+}
 
 /** Keeps storage separate from the UI so the settings implementation can be replaced later. */
 class SettingsRepository(context: Context, preferenceName: String = "user_settings") {
