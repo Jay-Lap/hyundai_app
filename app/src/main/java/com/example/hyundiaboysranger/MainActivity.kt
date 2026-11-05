@@ -21,9 +21,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.hyundiaboysranger.ui.theme.HyundiaBoysRangerTheme
@@ -42,8 +44,14 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun DrivingHelperApp() {
     var screen by rememberSaveable { mutableStateOf("home") }
-    var profile by rememberSaveable { mutableStateOf("직접 설정") }
-    var isLargeText by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val settingsRepository = remember(context) { SettingsRepository(context) }
+    var settings by remember(settingsRepository) { mutableStateOf(settingsRepository.load()) }
+
+    fun updateSettings(updated: UserSettings) {
+        settings = updated
+        settingsRepository.save(updated)
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
@@ -52,13 +60,13 @@ fun DrivingHelperApp() {
         Text(
             "안전 운전 도우미",
             style = MaterialTheme.typography.headlineLarge,
-            fontSize = if (isLargeText) 42.sp else 32.sp
+            fontSize = if (settings.largeTitle) 42.sp else 32.sp
         )
         Text("화면 시안 · 차량과 내비게이션이 연결되지 않았어요", style = MaterialTheme.typography.bodyLarge)
 
         when (screen) {
             "home" -> {
-                InfoCard("현재 사용자", "$profile · 설정은 이 화면 시안에서만 적용돼요.")
+                InfoCard("현재 사용자", "${settings.profile.label} · 사용자 유형과 제목 크기를 기기에 저장해요.")
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     NavButton("경로 준비") { screen = "route" }
                     NavButton("차량 조작 배우기") { screen = "learn" }
@@ -74,9 +82,9 @@ fun DrivingHelperApp() {
             }
             "profile" -> {
                 ScreenTitle("사용자 유형", "선택한 유형을 화면에 표시해요. 프리셋 자동 적용은 준비 중이에요.")
-                listOf("고령자", "초보자", "직접 설정").forEach { option ->
-                    OutlinedButton(onClick = { profile = option }, modifier = Modifier.sizeIn(minHeight = 56.dp)) {
-                        Text(if (profile == option) "$option · 선택됨" else option)
+                UserProfile.entries.forEach { option ->
+                    OutlinedButton(onClick = { updateSettings(settings.copy(profile = option)) }, modifier = Modifier.sizeIn(minHeight = 56.dp)) {
+                        Text(if (settings.profile == option) "${option.label} · 선택됨" else option.label)
                     }
                 }
                 BackButton { screen = "home" }
@@ -104,13 +112,13 @@ fun DrivingHelperApp() {
             }
             "settings" -> {
                 ScreenTitle("설정", "현재는 홈 화면 제목 크기만 바꿀 수 있어요.")
-                Text("홈 화면 제목 크기 · ${if (isLargeText) "크게" else "보통"}")
+                Text("홈 화면 제목 크기 · ${if (settings.largeTitle) "크게" else "보통"}")
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = { isLargeText = false }) { Text("보통") }
-                    Button(onClick = { isLargeText = true }) { Text("크게") }
+                    Button(onClick = { updateSettings(settings.copy(largeTitle = false)) }) { Text("보통") }
+                    Button(onClick = { updateSettings(settings.copy(largeTitle = true)) }) { Text("크게") }
                 }
                 InfoCard("준비 중", "화면 대비와 테마, 음성 안내, 주행 보조 설정은 추후 연결할 예정이에요.")
-                Text("선택한 설정은 이 화면 시안의 상태로만 유지되며 영구 저장되지 않아요.")
+                Text("사용자 유형과 제목 크기는 이 기기에 저장돼요.")
                 BackButton { screen = "home" }
             }
         }
