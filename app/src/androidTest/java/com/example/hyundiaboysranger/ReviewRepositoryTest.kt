@@ -38,4 +38,19 @@ class ReviewRepositoryTest {
             assertTrue(repository.load().preferHighways)
         } finally { context.deleteSharedPreferences(name) }
     }
+    @Test fun displaySettingsRestoreAndOldSeniorSettingsMigrate() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val name = "display_test_${System.nanoTime()}"
+        try {
+            context.getSharedPreferences(name, 0).edit().putString("profile", "senior")
+                .putBoolean("large_title", true).commit()
+            val migrated = SettingsRepository(context, name).load()
+            assertTrue(migrated.highContrast)
+            assertFalse(migrated.detailedGuidance)
+            val custom = migrated.copy(profile = UserProfile.CUSTOM, highContrast = false,
+                detailedGuidance = true, displayMode = DisplayMode.NIGHT)
+            SettingsRepository(context, name).save(custom)
+            assertEquals(custom, SettingsRepository(context, name).load())
+        } finally { context.deleteSharedPreferences(name) }
+    }
 }

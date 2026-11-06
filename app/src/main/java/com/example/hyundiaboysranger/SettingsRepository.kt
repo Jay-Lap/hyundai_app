@@ -12,15 +12,25 @@ enum class UserProfile(val key: String, val label: String) {
     }
 }
 
+enum class DisplayMode(val label: String) {
+    SYSTEM("기기 설정"), DAY("주간"), NIGHT("야간");
+    companion object {
+        fun fromKey(key: String?): DisplayMode = entries.firstOrNull { it.name == key } ?: SYSTEM
+    }
+}
+
 data class UserSettings(
     val profile: UserProfile = UserProfile.CUSTOM,
     val largeTitle: Boolean = false,
     val preferWideRoads: Boolean = false,
     val preferHighways: Boolean = false,
+    val highContrast: Boolean = false,
+    val detailedGuidance: Boolean = true,
+    val displayMode: DisplayMode = DisplayMode.SYSTEM,
 ) {
     fun withProfile(selected: UserProfile): UserSettings = when (selected) {
-        UserProfile.SENIOR -> copy(profile = selected, largeTitle = true)
-        UserProfile.BEGINNER -> copy(profile = selected, largeTitle = false)
+        UserProfile.SENIOR -> copy(profile = selected, largeTitle = true, highContrast = true, detailedGuidance = false)
+        UserProfile.BEGINNER -> copy(profile = selected, largeTitle = false, highContrast = false, detailedGuidance = true)
         UserProfile.CUSTOM -> copy(profile = selected)
     }
 }
@@ -34,6 +44,9 @@ class SettingsRepository(context: Context, preferenceName: String = "user_settin
         largeTitle = preferences.getBoolean("large_title", false),
         preferWideRoads = preferences.getBoolean("prefer_wide_roads", false),
         preferHighways = preferences.getBoolean("prefer_highways", false),
+        highContrast = preferences.getBoolean("high_contrast", preferences.getString("profile", null) == "senior"),
+        detailedGuidance = preferences.getBoolean("detailed_guidance", preferences.getString("profile", null) != "senior"),
+        displayMode = DisplayMode.fromKey(preferences.getString("display_mode", null)),
     )
 
     fun save(settings: UserSettings) {
@@ -42,6 +55,9 @@ class SettingsRepository(context: Context, preferenceName: String = "user_settin
             .putBoolean("large_title", settings.largeTitle)
             .putBoolean("prefer_wide_roads", settings.preferWideRoads)
             .putBoolean("prefer_highways", settings.preferHighways)
+            .putBoolean("high_contrast", settings.highContrast)
+            .putBoolean("detailed_guidance", settings.detailedGuidance)
+            .putString("display_mode", settings.displayMode.name)
             .apply()
     }
 }

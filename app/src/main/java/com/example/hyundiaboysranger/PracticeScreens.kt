@@ -13,7 +13,7 @@ private fun sdkSource(): String = if (Build.FINGERPRINT.contains("generic") ||
     "EMU_SDK · 에뮬레이터" else "SDK · 실차 여부 미검증"
 
 @Composable
-fun PracticeScreen(onBack: () -> Unit) {
+fun PracticeScreen(detailed: Boolean = true, onBack: () -> Unit) {
     val context = LocalContext.current
     val repository = remember { ReviewRepository(context) }
     var consent by remember { mutableStateOf(repository.consent) }
@@ -22,6 +22,7 @@ fun PracticeScreen(onBack: () -> Unit) {
     val source = remember { sdkSource() }
     Text("차량 조작 배우기 · 와이퍼", style = MaterialTheme.typography.headlineMedium)
     Text("주차 상태에서 앞유리 와이퍼를 켰다가 꺼 보세요. 조작 위치는 차량 매뉴얼을 확인해 주세요.")
+    if (detailed) Text("1. 연습 시작을 누르세요.\n2. 먼저 꺼짐을 확인해요.\n3. 와이퍼를 켜고 작동 확인을 기다리세요.\n4. 다시 끄면 완료돼요.")
     Text("데이터: $source · 차량에 제어 명령을 보내지 않아요.")
     Text("복습 저장에 동의하면 연습 결과를 이 기기에 저장해요. 동의를 끄면 기록도 삭제돼요.")
     Switch(checked = consent, onCheckedChange = {

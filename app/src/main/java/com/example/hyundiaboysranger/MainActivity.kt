@@ -7,7 +7,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.darkColorScheme
+import androidx.activity.compose.BackHandler
+import com.example.hyundiaboysranger.ui.theme.accessibleColors
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -29,6 +35,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
@@ -65,7 +73,16 @@ fun DrivingHelperApp() {
     val appTypography = remember(baseTypography, settings.largeTitle) {
         if (settings.largeTitle) baseTypography.enlarged() else baseTypography
     }
-    MaterialTheme(typography = appTypography) {
+    val dark = when (settings.displayMode) {
+        DisplayMode.SYSTEM -> isSystemInDarkTheme()
+        DisplayMode.DAY -> false
+        DisplayMode.NIGHT -> true
+    }
+    val colors = if (settings.highContrast) accessibleColors(dark)
+        else if (dark) darkColorScheme() else lightColorScheme()
+    BackHandler(enabled = screen != "home") { screen = "home" }
+    MaterialTheme(typography = appTypography, colorScheme = colors) {
+        Surface(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
@@ -84,22 +101,23 @@ fun DrivingHelperApp() {
                         InfoCard("다시 연습해 볼까요?", "완료하지 못한 와이퍼 연습이 있어요.")
                         NavButton("와이퍼 복습 시작") { screen = "learn" }
                     }
-                    NavButton("운전석 문 상태") { screen = "door" }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (!settings.detailedGuidance) {
                         NavButton("경로 준비") { screen = "route" }
                         NavButton("차량 조작 배우기") { screen = "learn" }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        NavButton("경고등 도움말") { screen = "warnings" }
                         NavButton("내 복습") { screen = "review" }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        NavButton("사용자 유형") { screen = "profile" }
-                        NavButton("설정") { screen = "settings" }
+                        NavButton("더 보기") { screen = "more" }
+                    } else {
+                        InfoCard("출발 전 확인", "경로를 살펴보고, 익숙하지 않은 조작은 주차 중 연습해 보세요.")
+                        HomeActions { screen = it }
                     }
                 }
+                "more" -> {
+                    ScreenTitle("더 보기", "문 상태, 도움말과 개인 설정을 확인해요.")
+                    HomeActions { screen = it }
+                    BackButton { screen = "home" }
+                }
                 "profile" -> {
-                    ScreenTitle("사용자 유형", "고령자는 큰 글자, 초보자는 보통 글자를 먼저 적용해요. 다른 기능은 준비 중이에요.")
+                    ScreenTitle("사용자 유형", "고령자: 큰 글자·높은 대비·간단한 안내. 초보자: 보통 글자·상세 안내. 직접 설정은 현재 설정을 유지해요.")
                     UserProfile.entries.forEach { option ->
                         OutlinedButton(onClick = { updateSettings(settings.withProfile(option)) }, modifier = Modifier.sizeIn(minHeight = 56.dp)) {
                             Text(if (settings.profile == option) "${option.label} · 선택됨" else option.label)
@@ -130,7 +148,7 @@ fun DrivingHelperApp() {
                     if (launchMessage.isNotEmpty()) Text(launchMessage)
                     BackButton { screen = "home" }
                 }
-                "learn" -> PracticeScreen(onBack = { screen = "home" })
+                "learn" -> PracticeScreen(detailed = settings.detailedGuidance, onBack = { screen = "home" })
                 "warnings" -> {
                     ScreenTitle("경고등 도움말", "차량이 보내는 경고의 의미와 대응 방법을 확인하는 공간이에요.")
                     InfoCard("차량 정보 미연결", "실제 경고를 확인하고 있지 않아요. 차량의 경고 표시와 공식 매뉴얼을 확인해 주세요.")
@@ -138,19 +156,38 @@ fun DrivingHelperApp() {
                 }
                 "review" -> ReviewScreen(onPractice = { screen = "learn" }, onBack = { screen = "home" })
                 "settings" -> {
-                    ScreenTitle("설정", "앱 전체에 표시되는 글자 크기를 바꿀 수 있어요.")
+                    ScreenTitle("설정", "글자·색상·안내 방식을 바꾸면 즉시 적용돼요.")
                     Text("글자 크기 · ${if (settings.largeTitle) "크게" else "보통"}")
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(onClick = { updateSettings(settings.copy(largeTitle = false)) }) { Text("보통") }
-                        Button(onClick = { updateSettings(settings.copy(largeTitle = true)) }) { Text("크게") }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(onClick = { updateSettings(settings.copy(profile = UserProfile.CUSTOM, largeTitle = false)) }) { Text("보통") }
+                        Button(onClick = { updateSettings(settings.copy(profile = UserProfile.CUSTOM, largeTitle = true)) }) { Text("크게") }
                     }
-                    InfoCard("준비 중", "화면 대비와 테마, 음성 안내, 주행 보조 설정은 추후 연결할 예정이에요.")
-                    Text("사용자 유형과 글자 크기는 이 기기에 저장돼요.")
+                    Text("높은 대비 · ${if (settings.highContrast) "켜짐" else "꺼짐"}")
+                    Switch(modifier = Modifier.semantics { contentDescription = "높은 대비" }, checked = settings.highContrast, onCheckedChange = {
+                        updateSettings(settings.copy(profile = UserProfile.CUSTOM, highContrast = it))
+                    })
+                    Text("화면 모드 · ${settings.displayMode.label}")
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DisplayMode.entries.forEach { mode ->
+                            OutlinedButton(onClick = { updateSettings(settings.copy(profile = UserProfile.CUSTOM, displayMode = mode)) }) {
+                                Text(mode.label + if (settings.displayMode == mode) " · 선택됨" else "")
+                            }
+                        }
+                    }
+                    Text("안내 상세도 · ${if (settings.detailedGuidance) "상세" else "간단"}")
+                    Switch(modifier = Modifier.semantics { contentDescription = "상세 안내" }, checked = settings.detailedGuidance, onCheckedChange = {
+                        updateSettings(settings.copy(profile = UserProfile.CUSTOM, detailedGuidance = it))
+                    })
+                    Text("간단한 안내는 홈 메뉴와 연습 설명을 줄여요. 안전 안내와 연결 상태는 계속 표시해요.")
+                    InfoCard("화면 예시", "설정은 지금 보는 제목·본문·버튼에도 적용돼요.")
+                    Text("직접 바꾸면 사용자 유형이 직접 설정으로 바뀌어요. 모든 설정은 이 기기에 저장돼요.")
                     BackButton { screen = "home" }
                 }
             }
         }
     }
+}
+
 }
 
 @Composable
@@ -217,4 +254,14 @@ private fun NavButton(label: String, onClick: () -> Unit) {
 @Composable
 private fun BackButton(onClick: () -> Unit) {
     OutlinedButton(onClick = onClick, modifier = Modifier.sizeIn(minHeight = 56.dp)) { Text("홈으로") }
+}
+
+@Composable
+private fun HomeActions(onNavigate: (String) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        listOf("door" to "운전석 문 상태", "route" to "경로 준비", "learn" to "차량 조작 배우기",
+            "warnings" to "경고등 도움말", "review" to "내 복습", "profile" to "사용자 유형", "settings" to "설정").forEach { (key, title) ->
+            NavButton(title) { onNavigate(key) }
+        }
+    }
 }
