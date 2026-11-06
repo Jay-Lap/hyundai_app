@@ -30,9 +30,9 @@ data class UserSettings(
     val textSizePercent: Int? = null,
 ) {
     val effectiveTextSizePercent: Int
-        get() = textSizePercent?.coerceIn(100, 180) ?: if (largeTitle) 140 else 100
+        get() = textSizePercent?.coerceIn(100, 200) ?: if (largeTitle) 140 else 100
 
-    fun withTextSize(percent: Int): UserSettings = copy(textSizePercent = percent.coerceIn(100, 180))
+    fun withTextSize(percent: Int): UserSettings = copy(textSizePercent = percent.coerceIn(100, 200))
 
     fun withProfile(selected: UserProfile): UserSettings = when (selected) {
         UserProfile.SENIOR -> copy(profile = selected, largeTitle = true, highContrast = true, detailedGuidance = false)
@@ -54,8 +54,14 @@ class SettingsRepository(context: Context, preferenceName: String = "user_settin
         detailedGuidance = preferences.getBoolean("detailed_guidance", preferences.getString("profile", null) != "senior"),
         displayMode = DisplayMode.fromKey(preferences.getString("display_mode", null)),
         textSizePercent = if (preferences.contains("text_size_percent"))
-            preferences.getInt("text_size_percent", 100).coerceIn(100, 180) else null,
+            preferences.getInt("text_size_percent", 100).coerceIn(100, 200) else null,
     )
+
+    fun observe(onChange: (UserSettings) -> Unit): () -> Unit {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> onChange(load()) }
+        preferences.registerOnSharedPreferenceChangeListener(listener)
+        return { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
 
     fun save(settings: UserSettings) {
         preferences.edit()

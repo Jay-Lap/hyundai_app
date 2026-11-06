@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Slider
+import kotlin.math.roundToInt
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.activity.compose.BackHandler
@@ -51,7 +53,7 @@ class MainActivity : ComponentActivity() {
         if (checkSelfPermission(speedPermission) != PackageManager.PERMISSION_GRANTED) permissionRequest.launch(speedPermission)
         setContent {
             HyundiaBoysRangerTheme {
-                Surface(modifier = Modifier.fillMaxSize()) { ParkedApp() }
+                Surface(modifier = Modifier.fillMaxSize()) { VoiceTextSizeHost { ParkedApp() } }
             }
         }
     }
@@ -63,6 +65,11 @@ fun DrivingHelperApp() {
     val context = LocalContext.current
     val settingsRepository = remember(context) { SettingsRepository(context) }
     var settings by remember(settingsRepository) { mutableStateOf(settingsRepository.load()) }
+
+    DisposableEffect(settingsRepository) {
+        val stopObserving = settingsRepository.observe { settings = it }
+        onDispose { stopObserving() }
+    }
 
     fun updateSettings(updated: UserSettings) {
         settings = updated
@@ -160,14 +167,18 @@ fun DrivingHelperApp() {
                     ScreenTitle("설정", "글자·색상·안내 방식을 바꾸면 즉시 적용돼요.")
                     Text("글자 크기 · ${settings.effectiveTextSizePercent}%")
                     Text("직접 고른 크기는 고령자·초보자를 바꿔도 유지돼요.")
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        listOf(100, 120, 140, 160, 180).forEach { percent ->
-                            OutlinedButton(onClick = { updateSettings(settings.withTextSize(percent)) },
-                                modifier = Modifier.sizeIn(minHeight = 56.dp)) {
-                                Text("${percent}%" + if (settings.effectiveTextSizePercent == percent) " · 선택됨" else "")
-                            }
-                        }
+                    var sliderValue by remember(settings.effectiveTextSizePercent) {
+                        mutableStateOf(settings.effectiveTextSizePercent.toFloat())
                     }
+                    Text("조절할 크기 · ${sliderValue.roundToInt()}% (100~200%)")
+                    Slider(value = sliderValue, onValueChange = { sliderValue = it },
+                        onValueChangeFinished = { updateSettings(settings.withTextSize(sliderValue.roundToInt())) },
+                        valueRange = 100f..200f,
+                        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "글자 크기 조절" })
+                    Text("손잡이를 끌고 놓으면 적용돼요.")
+                    val voice = LocalVoiceTextSize.current
+                    OutlinedButton(onClick = voice.launch, enabled = voice.available) { Text("음성으로 크기 바꾸기") }
+                    Text(voice.message)
                     OutlinedButton(onClick = { updateSettings(settings.copy(textSizePercent = null)) }) {
                         Text("사용자 유형 기본 크기로")
                     }

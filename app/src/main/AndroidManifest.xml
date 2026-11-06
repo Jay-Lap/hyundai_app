@@ -7,7 +7,10 @@
     <uses-permission android:name="pleos.car.permission.CAR_WINDOWS" />
     <uses-permission android:name="android.car.permission.CAR_SPEED" />
     <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
-    <queries><package android:name="ai.umos.maps.android.navigation.app" /></queries>
+    <queries>
+        <package android:name="ai.umos.maps.android.navigation.app" />
+        <intent><action android:name="android.speech.action.RECOGNIZE_SPEECH" /></intent>
+    </queries>
 
     <application
         android:allowBackup="true"

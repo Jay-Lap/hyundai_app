@@ -44,6 +44,6 @@ class ProfileSettingsTest {
         assertEquals(140, senior.copy(textSizePercent = null).effectiveTextSizePercent)
         assertEquals(100, beginner.copy(textSizePercent = null).effectiveTextSizePercent)
         assertEquals(100, manual.withTextSize(0).effectiveTextSizePercent)
-        assertEquals(180, manual.withTextSize(999).effectiveTextSizePercent)
+        assertEquals(200, manual.withTextSize(999).effectiveTextSizePercent)
     }
 }
