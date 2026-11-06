@@ -63,9 +63,17 @@ fun ReviewScreen(onPractice: () -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     val repository = remember { ReviewRepository(context) }
     var record by remember { mutableStateOf(repository.load()) }
+    var history by remember { mutableStateOf(repository.history()) }
+    var consent by remember { mutableStateOf(repository.consent) }
     var confirmDelete by remember { mutableStateOf(false) }
     Text("내 복습", style = MaterialTheme.typography.headlineMedium)
     Text("이 기기를 함께 쓰는 사람에게도 기록이 보여요. 현재는 사용자별 계정을 구분하지 않아요.")
+    Text("복습 기록 저장 · ${if (consent) "켜짐" else "꺼짐"}")
+    Text("끄면 현재 기록과 최근 이력이 삭제돼요.")
+    Switch(checked = consent, onCheckedChange = {
+        repository.consent = it; consent = it
+        record = repository.load(); history = repository.history()
+    })
     val saved = record
     if (saved == null) Text("저장된 기록이 없어요. 연습 화면에서 저장에 동의하면 기록을 남겨요.")
     else {
@@ -74,9 +82,16 @@ fun ReviewScreen(onPractice: () -> Unit, onBack: () -> Unit) {
         Button(onClick = onPractice) { Text("처음부터 다시 연습") }
         OutlinedButton(onClick = { confirmDelete = true }) { Text("기록 삭제") }
     }
+    if (history.isNotEmpty()) {
+        Text("최근 연습 이력 · 최대 20건", style = MaterialTheme.typography.titleLarge)
+        Text("시작과 완료를 각각 기록해요. 시작 기록만 남은 연습은 중간에 종료됐을 수 있어요.")
+        history.forEach { item ->
+            Text("${DateFormat.getDateTimeInstance().format(Date(item.updatedAt))} · ${if (item.complete) "완료" else "시작/진행 중"} · ${item.source}")
+        }
+    }
     if (confirmDelete) AlertDialog(onDismissRequest = { confirmDelete = false },
-        title = { Text("복습 기록을 삭제할까요?") }, text = { Text("삭제한 기록은 복원할 수 없어요.") },
-        confirmButton = { TextButton(onClick = { repository.delete(); record = null; confirmDelete = false }) { Text("삭제") } },
+        title = { Text("복습 기록을 삭제할까요?") }, text = { Text("현재 기록과 최근 이력이 모두 삭제돼요. 삭제한 기록은 복원할 수 없어요.") },
+        confirmButton = { TextButton(onClick = { repository.delete(); record = null; history = emptyList(); confirmDelete = false }) { Text("삭제") } },
         dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("취소") } })
     OutlinedButton(onClick = onBack) { Text("홈으로") }
 }

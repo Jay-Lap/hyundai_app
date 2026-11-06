@@ -17,12 +17,17 @@ class ReviewRepositoryTest {
             assertFalse(ReviewRepository(context, name).load()!!.complete)
             repository.save(true, "EMU_SDK")
             assertTrue(ReviewRepository(context, name).load()!!.complete)
+            assertEquals(2, ReviewRepository(context, name).history().size)
+            repeat(25) { repository.save(false, "EMU_SDK") }
+            assertEquals(20, ReviewRepository(context, name).history().size)
             repository.delete()
             assertNull(ReviewRepository(context, name).load())
+            assertTrue(ReviewRepository(context, name).history().isEmpty())
             repository.save(false, "EMU_SDK")
             repository.consent = false
             repository.consent = true
             assertNull(repository.load())
+            assertTrue(repository.history().isEmpty())
         } finally { context.deleteSharedPreferences(name) }
     }
     @Test fun routePreferencesAreIndependentAndPersisted() {

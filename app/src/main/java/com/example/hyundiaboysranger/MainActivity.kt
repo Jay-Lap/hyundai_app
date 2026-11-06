@@ -48,12 +48,24 @@ import com.example.hyundiaboysranger.ui.theme.HyundiaBoysRangerTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val speedPermission = "android.car.permission.CAR_SPEED"
-        val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
-        if (checkSelfPermission(speedPermission) != PackageManager.PERMISSION_GRANTED) permissionRequest.launch(speedPermission)
+        val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+        val runtimePermissions = listOf(
+            "android.car.permission.CAR_SPEED", "android.car.permission.CAR_POWERTRAIN",
+            "pleos.car.permission.CAR_DOORS", "pleos.car.permission.CAR_WINDOWS",
+            "pleos.car.permission.CAR_SAFETY", "pleos.car.permission.NAVI_ROUTE",
+            "pleos.car.permission.NAVI_ROUTE_SEARCH",
+        ).filter { permission ->
+            try {
+                val info = packageManager.getPermissionInfo(permission, 0)
+                (info.protectionLevel and android.content.pm.PermissionInfo.PROTECTION_MASK_BASE) ==
+                    android.content.pm.PermissionInfo.PROTECTION_DANGEROUS &&
+                    checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED
+            } catch (_: PackageManager.NameNotFoundException) { false }
+        }
+        if (runtimePermissions.isNotEmpty()) permissionRequest.launch(runtimePermissions.toTypedArray())
         setContent {
             HyundiaBoysRangerTheme {
-                Surface(modifier = Modifier.fillMaxSize()) { VoiceTextSizeHost { ParkedApp() } }
+                Surface(modifier = Modifier.fillMaxSize()) { VoiceTextSizeHost { SettingsTransferHost { ParkedApp() } } }
             }
         }
     }
@@ -62,6 +74,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun DrivingHelperApp() {
     var screen by rememberSaveable { mutableStateOf("home") }
+    var checks by remember { mutableStateOf<Set<Int>>(emptySet()) }
     val context = LocalContext.current
     val settingsRepository = remember(context) { SettingsRepository(context) }
     var settings by remember(settingsRepository) { mutableStateOf(settingsRepository.load()) }
@@ -98,7 +111,7 @@ fun DrivingHelperApp() {
                 "안전 운전 도우미",
                 style = MaterialTheme.typography.headlineLarge
             )
-            Text("내비게이션 기능은 아직 연결되지 않았어요", style = MaterialTheme.typography.bodyLarge)
+            Text("주차 중 편하게 준비하고 연습해요", style = MaterialTheme.typography.bodyLarge)
 
             when (screen) {
                 "home" -> {
@@ -112,6 +125,7 @@ fun DrivingHelperApp() {
                         NavButton("경로 준비") { screen = "route" }
                         NavButton("차량 조작 배우기") { screen = "learn" }
                         NavButton("내 복습") { screen = "review" }
+                        NavButton("출발 전 점검") { screen = "checklist" }
                         NavButton("더 보기") { screen = "more" }
                     } else {
                         InfoCard("출발 전 확인", "경로를 살펴보고, 익숙하지 않은 조작은 주차 중 연습해 보세요.")
@@ -133,6 +147,7 @@ fun DrivingHelperApp() {
                     NavButton("글자 크기 따로 조절") { screen = "settings" }
                     BackButton { screen = "home" }
                 }
+                "checklist" -> DepartureChecklist(checks, { checks = it }, { screen = "home" })
                 "door" -> DoorStatusScreen(onBack = { screen = "home" })
                 "route" -> {
                     ScreenTitle("경로 준비", "선호를 저장하고 기본 내비게이션에서 목적지를 검색해요.")
@@ -144,7 +159,7 @@ fun DrivingHelperApp() {
                     androidx.compose.material3.Switch(checked = settings.preferHighways, onCheckedChange = {
                         updateSettings(settings.copy(preferHighways = it))
                     })
-                    InfoCard("경로 계산 연동 준비 중", "두 선호는 별도로 저장돼요. 아직 기본 내비게이션의 경로에는 적용되지 않아요.")
+                    InfoCard("경로 선호", "큰길 선호는 저장만 해요. 고속도로 선호는 아래 경로 요청 옵션의 초기값에 반영돼요. 적용 버튼을 눌러야 요청돼요.")
                     var launchMessage by remember { mutableStateOf("") }
                     Button(onClick = {
                         val intent = context.packageManager.getLaunchIntentForPackage("ai.umos.maps.android.navigation.app")
@@ -154,14 +169,11 @@ fun DrivingHelperApp() {
                         } catch (_: Exception) { "내비게이션을 열 수 없어요. 차량 홈에서 실행해 주세요." }
                     }) { Text("기본 내비게이션 열기") }
                     if (launchMessage.isNotEmpty()) Text(launchMessage)
+                    NavigationScreen(preferHighways = settings.preferHighways)
                     BackButton { screen = "home" }
                 }
                 "learn" -> PracticeScreen(detailed = settings.detailedGuidance, onBack = { screen = "home" })
-                "warnings" -> {
-                    ScreenTitle("경고등 도움말", "차량이 보내는 경고의 의미와 대응 방법을 확인하는 공간이에요.")
-                    InfoCard("차량 정보 미연결", "실제 경고를 확인하고 있지 않아요. 차량의 경고 표시와 공식 매뉴얼을 확인해 주세요.")
-                    BackButton { screen = "home" }
-                }
+                "warnings" -> VehicleHealthScreen(onBack = { screen = "home" })
                 "review" -> ReviewScreen(onPractice = { screen = "learn" }, onBack = { screen = "home" })
                 "settings" -> {
                     ScreenTitle("설정", "글자·색상·안내 방식을 바꾸면 즉시 적용돼요.")
@@ -201,6 +213,7 @@ fun DrivingHelperApp() {
                     Text("간단한 안내는 홈 메뉴와 연습 설명을 줄여요. 안전 안내와 연결 상태는 계속 표시해요.")
                     InfoCard("화면 예시", "설정은 지금 보는 제목·본문·버튼에도 적용돼요.")
                     Text("글자 크기는 사용자 유형과 별도로 저장돼요. 대비·화면 모드·상세도를 바꾸면 직접 설정으로 바뀌어요.")
+                    SettingsManagement { updateSettings(UserSettings()) }
                     BackButton { screen = "home" }
                 }
             }
@@ -279,8 +292,8 @@ private fun BackButton(onClick: () -> Unit) {
 @Composable
 private fun HomeActions(onNavigate: (String) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        listOf("door" to "운전석 문 상태", "route" to "경로 준비", "learn" to "차량 조작 배우기",
-            "warnings" to "경고등 도움말", "review" to "내 복습", "profile" to "사용자 유형", "settings" to "설정").forEach { (key, title) ->
+        listOf("checklist" to "출발 전 점검", "door" to "운전석 문 상태", "route" to "경로 준비", "learn" to "차량 조작 배우기",
+            "warnings" to "차량 상태·경고 도움말", "review" to "내 복습", "profile" to "사용자 유형", "settings" to "설정").forEach { (key, title) ->
             NavButton(title) { onNavigate(key) }
         }
     }

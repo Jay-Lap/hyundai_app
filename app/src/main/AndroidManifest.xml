@@ -5,8 +5,11 @@
     <uses-permission android:name="pleos.car.permission.CAR_DOORS" />
 
     <uses-permission android:name="pleos.car.permission.CAR_WINDOWS" />
+    <uses-permission android:name="pleos.car.permission.CAR_SAFETY" />
     <uses-permission android:name="android.car.permission.CAR_SPEED" />
     <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
+    <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
+    <uses-permission android:name="pleos.car.permission.NAVI_ROUTE_SEARCH" />
     <queries>
         <package android:name="ai.umos.maps.android.navigation.app" />
         <intent><action android:name="android.speech.action.RECOGNIZE_SPEECH" /></intent>
