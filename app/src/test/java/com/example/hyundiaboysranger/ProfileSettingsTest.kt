@@ -33,4 +33,17 @@ class ProfileSettingsTest {
     fun unknownProfileDoesNotSelectAnUnrequestedPreset() {
         assertEquals(UserProfile.CUSTOM, UserProfile.fromKey("unknown"))
     }
+    @Test
+    fun explicitTextSizeSurvivesProfileSwitchingAndResetRestoresPreset() {
+        val manual = UserSettings().withTextSize(160)
+        val senior = manual.withProfile(UserProfile.SENIOR)
+        val beginner = senior.withProfile(UserProfile.BEGINNER)
+        assertEquals(160, senior.effectiveTextSizePercent)
+        assertEquals(160, beginner.effectiveTextSizePercent)
+        assertEquals(UserProfile.BEGINNER, beginner.withTextSize(180).profile)
+        assertEquals(140, senior.copy(textSizePercent = null).effectiveTextSizePercent)
+        assertEquals(100, beginner.copy(textSizePercent = null).effectiveTextSizePercent)
+        assertEquals(100, manual.withTextSize(0).effectiveTextSizePercent)
+        assertEquals(180, manual.withTextSize(999).effectiveTextSizePercent)
+    }
 }

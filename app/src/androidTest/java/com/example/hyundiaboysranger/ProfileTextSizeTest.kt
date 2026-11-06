@@ -24,6 +24,7 @@ class ProfileTextSizeTest {
     fun saveOriginalSettings() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         originalSettings = SettingsRepository(context).load()
+        SettingsRepository(context).save(UserSettings())
         composeRule.setContent { HyundiaBoysRangerTheme { DrivingHelperApp() } }
     }
 

@@ -27,7 +27,13 @@ data class UserSettings(
     val highContrast: Boolean = false,
     val detailedGuidance: Boolean = true,
     val displayMode: DisplayMode = DisplayMode.SYSTEM,
+    val textSizePercent: Int? = null,
 ) {
+    val effectiveTextSizePercent: Int
+        get() = textSizePercent?.coerceIn(100, 180) ?: if (largeTitle) 140 else 100
+
+    fun withTextSize(percent: Int): UserSettings = copy(textSizePercent = percent.coerceIn(100, 180))
+
     fun withProfile(selected: UserProfile): UserSettings = when (selected) {
         UserProfile.SENIOR -> copy(profile = selected, largeTitle = true, highContrast = true, detailedGuidance = false)
         UserProfile.BEGINNER -> copy(profile = selected, largeTitle = false, highContrast = false, detailedGuidance = true)
@@ -47,6 +53,8 @@ class SettingsRepository(context: Context, preferenceName: String = "user_settin
         highContrast = preferences.getBoolean("high_contrast", preferences.getString("profile", null) == "senior"),
         detailedGuidance = preferences.getBoolean("detailed_guidance", preferences.getString("profile", null) != "senior"),
         displayMode = DisplayMode.fromKey(preferences.getString("display_mode", null)),
+        textSizePercent = if (preferences.contains("text_size_percent"))
+            preferences.getInt("text_size_percent", 100).coerceIn(100, 180) else null,
     )
 
     fun save(settings: UserSettings) {
@@ -58,6 +66,10 @@ class SettingsRepository(context: Context, preferenceName: String = "user_settin
             .putBoolean("high_contrast", settings.highContrast)
             .putBoolean("detailed_guidance", settings.detailedGuidance)
             .putString("display_mode", settings.displayMode.name)
+            .also { editor ->
+                if (settings.textSizePercent == null) editor.remove("text_size_percent")
+                else editor.putInt("text_size_percent", settings.effectiveTextSizePercent)
+            }
             .apply()
     }
 }

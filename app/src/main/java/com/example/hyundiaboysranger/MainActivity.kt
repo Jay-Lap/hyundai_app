@@ -70,8 +70,8 @@ fun DrivingHelperApp() {
     }
 
     val baseTypography = MaterialTheme.typography
-    val appTypography = remember(baseTypography, settings.largeTitle) {
-        if (settings.largeTitle) baseTypography.enlarged() else baseTypography
+    val appTypography = remember(baseTypography, settings.effectiveTextSizePercent) {
+        baseTypography.enlarged(settings.effectiveTextSizePercent / 100f)
     }
     val dark = when (settings.displayMode) {
         DisplayMode.SYSTEM -> isSystemInDarkTheme()
@@ -117,12 +117,13 @@ fun DrivingHelperApp() {
                     BackButton { screen = "home" }
                 }
                 "profile" -> {
-                    ScreenTitle("사용자 유형", "고령자: 큰 글자·높은 대비·간단한 안내. 초보자: 보통 글자·상세 안내. 직접 설정은 현재 설정을 유지해요.")
+                    ScreenTitle("사용자 유형", "고령자: 큰 글자·높은 대비·간단한 안내. 초보자: 보통 글자·상세 안내. 직접 설정은 현재 설정을 유지해요. 따로 지정한 글자 크기는 유형을 바꿔도 유지해요.")
                     UserProfile.entries.forEach { option ->
                         OutlinedButton(onClick = { updateSettings(settings.withProfile(option)) }, modifier = Modifier.sizeIn(minHeight = 56.dp)) {
                             Text(if (settings.profile == option) "${option.label} · 선택됨" else option.label)
                         }
                     }
+                    NavButton("글자 크기 따로 조절") { screen = "settings" }
                     BackButton { screen = "home" }
                 }
                 "door" -> DoorStatusScreen(onBack = { screen = "home" })
@@ -157,10 +158,18 @@ fun DrivingHelperApp() {
                 "review" -> ReviewScreen(onPractice = { screen = "learn" }, onBack = { screen = "home" })
                 "settings" -> {
                     ScreenTitle("설정", "글자·색상·안내 방식을 바꾸면 즉시 적용돼요.")
-                    Text("글자 크기 · ${if (settings.largeTitle) "크게" else "보통"}")
+                    Text("글자 크기 · ${settings.effectiveTextSizePercent}%")
+                    Text("직접 고른 크기는 고령자·초보자를 바꿔도 유지돼요.")
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(onClick = { updateSettings(settings.copy(profile = UserProfile.CUSTOM, largeTitle = false)) }) { Text("보통") }
-                        Button(onClick = { updateSettings(settings.copy(profile = UserProfile.CUSTOM, largeTitle = true)) }) { Text("크게") }
+                        listOf(100, 120, 140, 160, 180).forEach { percent ->
+                            OutlinedButton(onClick = { updateSettings(settings.withTextSize(percent)) },
+                                modifier = Modifier.sizeIn(minHeight = 56.dp)) {
+                                Text("${percent}%" + if (settings.effectiveTextSizePercent == percent) " · 선택됨" else "")
+                            }
+                        }
+                    }
+                    OutlinedButton(onClick = { updateSettings(settings.copy(textSizePercent = null)) }) {
+                        Text("사용자 유형 기본 크기로")
                     }
                     Text("높은 대비 · ${if (settings.highContrast) "켜짐" else "꺼짐"}")
                     Switch(modifier = Modifier.semantics { contentDescription = "높은 대비" }, checked = settings.highContrast, onCheckedChange = {
@@ -180,7 +189,7 @@ fun DrivingHelperApp() {
                     })
                     Text("간단한 안내는 홈 메뉴와 연습 설명을 줄여요. 안전 안내와 연결 상태는 계속 표시해요.")
                     InfoCard("화면 예시", "설정은 지금 보는 제목·본문·버튼에도 적용돼요.")
-                    Text("직접 바꾸면 사용자 유형이 직접 설정으로 바뀌어요. 모든 설정은 이 기기에 저장돼요.")
+                    Text("글자 크기는 사용자 유형과 별도로 저장돼요. 대비·화면 모드·상세도를 바꾸면 직접 설정으로 바뀌어요.")
                     BackButton { screen = "home" }
                 }
             }
@@ -207,27 +216,27 @@ private fun DoorStatusScreen(onBack: () -> Unit) {
     BackButton(onClick = onBack)
 }
 
-private fun TextStyle.enlarged(): TextStyle = copy(
-    fontSize = if (fontSize.isSpecified) fontSize * 1.4f else fontSize,
-    lineHeight = if (lineHeight.isSpecified) lineHeight * 1.4f else lineHeight,
+private fun TextStyle.enlarged(scale: Float): TextStyle = copy(
+    fontSize = if (fontSize.isSpecified) fontSize * scale else fontSize,
+    lineHeight = if (lineHeight.isSpecified) lineHeight * scale else lineHeight,
 )
 
-private fun Typography.enlarged(): Typography = copy(
-    displayLarge = displayLarge.enlarged(),
-    displayMedium = displayMedium.enlarged(),
-    displaySmall = displaySmall.enlarged(),
-    headlineLarge = headlineLarge.enlarged(),
-    headlineMedium = headlineMedium.enlarged(),
-    headlineSmall = headlineSmall.enlarged(),
-    titleLarge = titleLarge.enlarged(),
-    titleMedium = titleMedium.enlarged(),
-    titleSmall = titleSmall.enlarged(),
-    bodyLarge = bodyLarge.enlarged(),
-    bodyMedium = bodyMedium.enlarged(),
-    bodySmall = bodySmall.enlarged(),
-    labelLarge = labelLarge.enlarged(),
-    labelMedium = labelMedium.enlarged(),
-    labelSmall = labelSmall.enlarged(),
+private fun Typography.enlarged(scale: Float): Typography = copy(
+    displayLarge = displayLarge.enlarged(scale),
+    displayMedium = displayMedium.enlarged(scale),
+    displaySmall = displaySmall.enlarged(scale),
+    headlineLarge = headlineLarge.enlarged(scale),
+    headlineMedium = headlineMedium.enlarged(scale),
+    headlineSmall = headlineSmall.enlarged(scale),
+    titleLarge = titleLarge.enlarged(scale),
+    titleMedium = titleMedium.enlarged(scale),
+    titleSmall = titleSmall.enlarged(scale),
+    bodyLarge = bodyLarge.enlarged(scale),
+    bodyMedium = bodyMedium.enlarged(scale),
+    bodySmall = bodySmall.enlarged(scale),
+    labelLarge = labelLarge.enlarged(scale),
+    labelMedium = labelMedium.enlarged(scale),
+    labelSmall = labelSmall.enlarged(scale),
 )
 
 @Composable

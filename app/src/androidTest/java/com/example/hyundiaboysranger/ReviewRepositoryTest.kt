@@ -48,9 +48,11 @@ class ReviewRepositoryTest {
             assertTrue(migrated.highContrast)
             assertFalse(migrated.detailedGuidance)
             val custom = migrated.copy(profile = UserProfile.CUSTOM, highContrast = false,
-                detailedGuidance = true, displayMode = DisplayMode.NIGHT)
+                detailedGuidance = true, displayMode = DisplayMode.NIGHT, textSizePercent = 160)
             SettingsRepository(context, name).save(custom)
             assertEquals(custom, SettingsRepository(context, name).load())
+            SettingsRepository(context, name).save(custom.copy(textSizePercent = null))
+            assertNull(SettingsRepository(context, name).load().textSizePercent)
         } finally { context.deleteSharedPreferences(name) }
     }
 }
