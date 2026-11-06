@@ -33,7 +33,13 @@ fun ParkedApp() {
             } finally { evidence = ParkingEvidence(); monitor.close() }
         }
     }
-    if (evidence.allowsPractice(now)) DrivingHelperApp()
+    // The watchdog is only a recomposition trigger, not the time of this decision.
+    // A newly received sample may be newer than its last tick; comparing with that
+    // old tick falsely marks the sample as future-dated until the next tick.
+    val parkingAllowed = remember(evidence, now) {
+        evidence.allowsPractice(SystemClock.elapsedRealtime())
+    }
+    if (parkingAllowed) DrivingHelperApp()
     else Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Text("안전 운전 도우미", style = MaterialTheme.typography.headlineLarge)
         Text("안전한 주차 상태를 확인하면 사용할 수 있어요.", style = MaterialTheme.typography.headlineMedium)
