@@ -4,6 +4,7 @@ plugins {
 }
 
 android {
+    useLibrary("android.car")
     namespace = "com.example.hyundiaboysranger"
     compileSdk {
         version = release(37)

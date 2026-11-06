@@ -3,7 +3,8 @@ package com.example.hyundiaboysranger
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.createComposeRule
+import com.example.hyundiaboysranger.ui.theme.HyundiaBoysRangerTheme
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
@@ -15,7 +16,7 @@ import org.junit.Test
 
 class ProfileTextSizeTest {
     @get:Rule
-    val composeRule = createAndroidComposeRule<MainActivity>()
+    val composeRule = createComposeRule()
 
     private lateinit var originalSettings: UserSettings
 
@@ -23,6 +24,7 @@ class ProfileTextSizeTest {
     fun saveOriginalSettings() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         originalSettings = SettingsRepository(context).load()
+        composeRule.setContent { HyundiaBoysRangerTheme { DrivingHelperApp() } }
     }
 
     @After

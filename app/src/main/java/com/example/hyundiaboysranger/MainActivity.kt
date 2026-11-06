@@ -1,6 +1,8 @@
 package com.example.hyundiaboysranger
 
 import android.os.Bundle
+import android.content.pm.PackageManager
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -36,9 +38,12 @@ import com.example.hyundiaboysranger.ui.theme.HyundiaBoysRangerTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val speedPermission = "android.car.permission.CAR_SPEED"
+        val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+        if (checkSelfPermission(speedPermission) != PackageManager.PERMISSION_GRANTED) permissionRequest.launch(speedPermission)
         setContent {
             HyundiaBoysRangerTheme {
-                Surface(modifier = Modifier.fillMaxSize()) { DrivingHelperApp() }
+                Surface(modifier = Modifier.fillMaxSize()) { ParkedApp() }
             }
         }
     }
@@ -74,6 +79,11 @@ fun DrivingHelperApp() {
             when (screen) {
                 "home" -> {
                     InfoCard("현재 사용자", "${settings.profile.label} · 사용자 유형과 글자 크기를 기기에 저장해요.")
+                    val pendingReview = remember { ReviewRepository(context).load() }
+                    if (pendingReview?.complete == false) {
+                        InfoCard("다시 연습해 볼까요?", "완료하지 못한 와이퍼 연습이 있어요.")
+                        NavButton("와이퍼 복습 시작") { screen = "learn" }
+                    }
                     NavButton("운전석 문 상태") { screen = "door" }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         NavButton("경로 준비") { screen = "route" }
@@ -99,26 +109,34 @@ fun DrivingHelperApp() {
                 }
                 "door" -> DoorStatusScreen(onBack = { screen = "home" })
                 "route" -> {
-                    ScreenTitle("경로 준비", "출발 전에 경로와 운전 부담 요소를 살펴보는 공간이에요.")
-                    InfoCard("경로 정보 없음", "목적지 검색과 경로 비교는 내비게이션 연동 후 사용할 수 있어요.")
-                    Text("큰길 선호와 고속도로 선호는 별도로 설정할 예정이에요.")
+                    ScreenTitle("경로 준비", "선호를 저장하고 기본 내비게이션에서 목적지를 검색해요.")
+                    Text("큰길 선호 · ${if (settings.preferWideRoads) "켜짐" else "꺼짐"}")
+                    androidx.compose.material3.Switch(checked = settings.preferWideRoads, onCheckedChange = {
+                        updateSettings(settings.copy(preferWideRoads = it))
+                    })
+                    Text("고속도로 선호 · ${if (settings.preferHighways) "켜짐" else "꺼짐"}")
+                    androidx.compose.material3.Switch(checked = settings.preferHighways, onCheckedChange = {
+                        updateSettings(settings.copy(preferHighways = it))
+                    })
+                    InfoCard("경로 계산 연동 준비 중", "두 선호는 별도로 저장돼요. 아직 기본 내비게이션의 경로에는 적용되지 않아요.")
+                    var launchMessage by remember { mutableStateOf("") }
+                    Button(onClick = {
+                        val intent = context.packageManager.getLaunchIntentForPackage("ai.umos.maps.android.navigation.app")
+                        launchMessage = try {
+                            if (intent == null) "기본 내비게이션 실행 화면을 찾지 못했어요. 차량 홈에서 열어 주세요."
+                            else { context.startActivity(intent); "" }
+                        } catch (_: Exception) { "내비게이션을 열 수 없어요. 차량 홈에서 실행해 주세요." }
+                    }) { Text("기본 내비게이션 열기") }
+                    if (launchMessage.isNotEmpty()) Text(launchMessage)
                     BackButton { screen = "home" }
                 }
-                "learn" -> {
-                    ScreenTitle("차량 조작 배우기", "공조, 김서림 제거와 와이퍼 조작을 연습할 수 있어요.")
-                    InfoCard("실습 잠김", "주차 상태와 차량 정보 확인 기능을 연결한 뒤 사용할 수 있어요.")
-                    BackButton { screen = "home" }
-                }
+                "learn" -> PracticeScreen(onBack = { screen = "home" })
                 "warnings" -> {
                     ScreenTitle("경고등 도움말", "차량이 보내는 경고의 의미와 대응 방법을 확인하는 공간이에요.")
                     InfoCard("차량 정보 미연결", "실제 경고를 확인하고 있지 않아요. 차량의 경고 표시와 공식 매뉴얼을 확인해 주세요.")
                     BackButton { screen = "home" }
                 }
-                "review" -> {
-                    ScreenTitle("내 복습", "어려웠던 조작과 완료하지 못한 연습을 다시 살펴봐요.")
-                    InfoCard("기록 없음", "복습 기록 저장과 복원은 아직 연결되지 않았어요.")
-                    BackButton { screen = "home" }
-                }
+                "review" -> ReviewScreen(onPractice = { screen = "learn" }, onBack = { screen = "home" })
                 "settings" -> {
                     ScreenTitle("설정", "앱 전체에 표시되는 글자 크기를 바꿀 수 있어요.")
                     Text("글자 크기 · ${if (settings.largeTitle) "크게" else "보통"}")

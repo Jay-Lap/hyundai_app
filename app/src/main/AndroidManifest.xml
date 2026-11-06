@@ -4,6 +4,11 @@
 
     <uses-permission android:name="pleos.car.permission.CAR_DOORS" />
 
+    <uses-permission android:name="pleos.car.permission.CAR_WINDOWS" />
+    <uses-permission android:name="android.car.permission.CAR_SPEED" />
+    <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
+    <queries><package android:name="ai.umos.maps.android.navigation.app" /></queries>
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -13,6 +18,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.HyundiaBoysRanger">
+        <uses-library android:name="android.car" android:required="true" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

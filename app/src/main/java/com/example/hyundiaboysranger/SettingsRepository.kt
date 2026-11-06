@@ -15,6 +15,8 @@ enum class UserProfile(val key: String, val label: String) {
 data class UserSettings(
     val profile: UserProfile = UserProfile.CUSTOM,
     val largeTitle: Boolean = false,
+    val preferWideRoads: Boolean = false,
+    val preferHighways: Boolean = false,
 ) {
     fun withProfile(selected: UserProfile): UserSettings = when (selected) {
         UserProfile.SENIOR -> copy(profile = selected, largeTitle = true)
@@ -30,12 +32,16 @@ class SettingsRepository(context: Context, preferenceName: String = "user_settin
     fun load(): UserSettings = UserSettings(
         profile = UserProfile.fromKey(preferences.getString("profile", null)),
         largeTitle = preferences.getBoolean("large_title", false),
+        preferWideRoads = preferences.getBoolean("prefer_wide_roads", false),
+        preferHighways = preferences.getBoolean("prefer_highways", false),
     )
 
     fun save(settings: UserSettings) {
         preferences.edit()
             .putString("profile", settings.profile.key)
             .putBoolean("large_title", settings.largeTitle)
+            .putBoolean("prefer_wide_roads", settings.preferWideRoads)
+            .putBoolean("prefer_highways", settings.preferHighways)
             .apply()
     }
 }
