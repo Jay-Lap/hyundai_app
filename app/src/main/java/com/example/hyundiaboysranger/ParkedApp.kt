@@ -26,10 +26,7 @@ fun ParkedApp() {
             val monitor = ParkingMonitor(context)
             libraryAvailable = monitor.available
             try {
-                while (true) {
-                    evidence = monitor.read()
-                    delay(750)
-                }
+                VehicleStateHub(monitor::read).states().collect { evidence = it }
             } finally { evidence = ParkingEvidence(); monitor.close() }
         }
     }
@@ -37,7 +34,7 @@ fun ParkedApp() {
     // A newly received sample may be newer than its last tick; comparing with that
     // old tick falsely marks the sample as future-dated until the next tick.
     val parkingAllowed = remember(evidence, now) {
-        evidence.allowsPractice(SystemClock.elapsedRealtime())
+        FeatureGate.allowed(AppFeature.PRACTICE, evidence, SystemClock.elapsedRealtime())
     }
     if (parkingAllowed) DrivingHelperApp()
     else Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {

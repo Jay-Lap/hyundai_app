@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
         ).filter { permission ->
             try {
                 val info = packageManager.getPermissionInfo(permission, 0)
-                (info.protectionLevel and android.content.pm.PermissionInfo.PROTECTION_MASK_BASE) ==
+                info.protection ==
                     android.content.pm.PermissionInfo.PROTECTION_DANGEROUS &&
                     checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED
             } catch (_: PackageManager.NameNotFoundException) { false }
@@ -65,7 +65,16 @@ class MainActivity : ComponentActivity() {
         if (runtimePermissions.isNotEmpty()) permissionRequest.launch(runtimePermissions.toTypedArray())
         setContent {
             HyundiaBoysRangerTheme {
-                Surface(modifier = Modifier.fillMaxSize()) { VoiceTextSizeHost { SettingsTransferHost { ParkedApp() } } }
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    if (BuildConfig.IS_DEMO) {
+                        Column(Modifier.fillMaxSize()) {
+                            Text(androidx.compose.ui.res.stringResource(R.string.demo_banner), style = MaterialTheme.typography.titleLarge)
+                            androidx.compose.foundation.layout.Box(Modifier.weight(1f)) {
+                                VoiceTextSizeHost { SettingsTransferHost { ParkedApp() } }
+                            }
+                        }
+                    } else VoiceTextSizeHost { SettingsTransferHost { ParkedApp() } }
+                }
             }
         }
     }
@@ -193,7 +202,7 @@ fun DrivingHelperApp(phonePreview: Boolean = false) {
                         modifier = Modifier.fillMaxWidth().semantics { contentDescription = "글자 크기 조절" })
                     Text("손잡이를 끌고 놓으면 적용돼요.")
                     val voice = LocalVoiceTextSize.current
-                    OutlinedButton(onClick = voice.launch, enabled = voice.available) { Text("음성으로 크기 바꾸기") }
+                    if (voice.available) OutlinedButton(onClick = voice.launch) { Text("음성으로 크기 바꾸기") }
                     Text(voice.message)
                     OutlinedButton(onClick = { updateSettings(settings.copy(textSizePercent = null)) }) {
                         Text("사용자 유형 기본 크기로")

@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">hyundia boys ranger</string>
+    <string name="signal_no_data">지원 여부 또는 신호를 확인하지 못했어요.</string>
+    <string name="signal_permission">이 정보에 대한 접근 권한이 없어요.</string>
+    <string name="signal_timeout">차량의 응답이 늦어 확인하지 못했어요.</string>
+    <string name="signal_emulator_unavailable">이 에뮬레이터에서 신호가 제공되지 않아요.</string>
+    <string name="signal_error">차량 서비스 오류로 확인하지 못했어요.</string>
+    <string name="demo_banner">시연용</string>
 </resources>

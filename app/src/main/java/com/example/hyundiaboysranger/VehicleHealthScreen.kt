@@ -47,13 +47,13 @@ fun VehicleHealthScreen(onBack: () -> Unit) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(door.name, style = MaterialTheme.typography.titleLarge)
                     Text(door.explanation)
-                    Text("잠금 신호: ${when (door.locked) { true -> "잠김"; false -> "잠금 해제"; null -> "확인 안 됨" }}")
+                    Text("잠금 신호: ${when (val result = door.lockResult) { is SignalResult.Value -> if (result.value) "잠김" else "잠금 해제"; else -> signalStatus(result) }}")
                 }
             }
         }
-        WarningReading("앞 왼쪽 좌석 안전벨트 경고", snapshot.driverBeltWarning,
+        WarningReading("앞 왼쪽 좌석 안전벨트 경고", snapshot.beltResult,
             "차량이 안전벨트 미착용 경고를 보내고 있어요. 안전벨트와 차량 표시를 직접 확인해 주세요.")
-        WarningReading("워셔액 부족 경고", snapshot.washerWarning,
+        WarningReading("워셔액 부족 경고", snapshot.washerResult,
             "차량이 워셔액 부족 경고를 보내고 있어요. 해당 차량의 공식 매뉴얼에서 워셔액 점검 방법을 확인해 주세요.")
     }
     Text("확인 안 됨은 정상이라는 뜻이 아니에요. 차량 표시와 공식 매뉴얼을 우선 확인해 주세요. 이 앱은 문이나 잠금 장치를 제어하지 않아요.")
@@ -61,11 +61,20 @@ fun VehicleHealthScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun WarningReading(title: String, warning: Boolean?, explanation: String) {
+private fun WarningReading(title: String, warning: SignalResult<Boolean>, explanation: String) {
     Text(title, style = MaterialTheme.typography.titleLarge)
     Text(when (warning) {
-        true -> explanation
-        false -> "이번 조회에서 해당 경고는 보고되지 않았어요."
-        null -> "경고 상태를 확인하지 못했어요. 권한·지원 여부·연결을 확인해 주세요."
+        is SignalResult.Value -> if (warning.value) explanation else "이번 조회에서 해당 경고는 보고되지 않았어요."
+        else -> signalStatus(warning)
     })
 }
+
+@Composable
+private fun signalStatus(result: SignalResult<*>): String = androidx.compose.ui.res.stringResource(when (result) {
+    SignalResult.NoSignal -> R.string.signal_no_data
+    SignalResult.PermissionDenied -> R.string.signal_permission
+    SignalResult.Timeout -> R.string.signal_timeout
+    SignalResult.EmulatorUnavailable -> R.string.signal_emulator_unavailable
+    SignalResult.Error -> R.string.signal_error
+    is SignalResult.Value -> R.string.signal_no_data
+})
