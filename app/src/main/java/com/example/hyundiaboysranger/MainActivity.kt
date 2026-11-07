@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun DrivingHelperApp() {
+fun DrivingHelperApp(phonePreview: Boolean = false) {
     var screen by rememberSaveable { mutableStateOf("home") }
     var checks by remember { mutableStateOf<Set<Int>>(emptySet()) }
     val context = LocalContext.current
@@ -112,8 +112,12 @@ fun DrivingHelperApp() {
                 style = MaterialTheme.typography.headlineLarge
             )
             Text("주차 중 편하게 준비하고 연습해요", style = MaterialTheme.typography.bodyLarge)
+            if (phonePreview) InfoCard("휴대폰 에뮬레이터 화면 확인용", "차량 상태와 실제 주차 여부를 확인하지 않아요. 차량 기능은 Pleos 에뮬레이터에서 사용하세요.")
 
-            when (screen) {
+            if (phonePreview && screen in setOf("door", "route", "learn", "warnings")) {
+                ScreenTitle("차량 기능은 Pleos에서 사용해요", "이 화면 확인용 모드에는 차량 데이터와 내비게이션이 연결되지 않아요.")
+                BackButton { screen = "home" }
+            } else when (screen) {
                 "home" -> {
                     InfoCard("현재 사용자", "${settings.profile.label} · 사용자 유형과 글자 크기를 기기에 저장해요.")
                     val pendingReview = remember { ReviewRepository(context).load() }
