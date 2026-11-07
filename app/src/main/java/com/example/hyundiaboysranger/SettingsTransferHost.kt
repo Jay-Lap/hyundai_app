@@ -24,7 +24,7 @@ fun SettingsTransferHost(content: @Composable () -> Unit) {
     var pending by remember { mutableStateOf<UserSettings?>(null) }
     var busy by remember { mutableStateOf(false) }
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
-        if (uri == null) { busy = false; message = "설정 내보내기를 취소했어요." }
+        if (uri == null) { busy = false; message = "파일 저장이 취소되었거나 선택 화면을 사용할 수 없어요. 내부 백업을 이용할 수 있어요." }
         else scope.launch {
             val data = SettingsBackup.encode(SettingsRepository(context).load())
             val success = withContext(Dispatchers.IO) {
@@ -35,7 +35,7 @@ fun SettingsTransferHost(content: @Composable () -> Unit) {
         }
     }
     val import = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) { busy = false; message = "설정 가져오기를 취소했어요." }
+        if (uri == null) { busy = false; message = "파일 가져오기가 취소되었거나 선택 화면을 사용할 수 없어요." }
         else scope.launch {
             val decoded = withContext(Dispatchers.IO) {
                 try {

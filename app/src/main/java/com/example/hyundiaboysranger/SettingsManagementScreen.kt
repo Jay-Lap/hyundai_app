@@ -9,7 +9,9 @@ import androidx.compose.ui.unit.dp
 fun SettingsManagement(onReset: () -> Unit) {
     val transfer = LocalSettingsTransfer.current
     var confirmReset by remember { mutableStateOf(false) }
-    Text("설정 백업과 복원", style = MaterialTheme.typography.titleLarge)
+    LocalSettingsBackupScreen()
+    Text("파일로 설정 내보내기·가져오기", style = MaterialTheme.typography.titleLarge)
+    Text("파일 선택기를 제공하지 않는 기기에서는 위의 내부 백업을 이용해 주세요.")
     Text(transfer.message)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedButton(onClick = transfer.export, enabled = !transfer.busy) { Text("설정 파일 저장") }
