@@ -25,10 +25,21 @@ fun PracticeScreen(detailed: Boolean = true, onBack: () -> Unit) {
     if (detailed) Text("1. 연습 시작을 누르세요.\n2. 먼저 꺼짐을 확인해요.\n3. 와이퍼를 켜고 작동 확인을 기다리세요.\n4. 다시 끄면 완료돼요.")
     Text("데이터: $source · 차량에 제어 명령을 보내지 않아요.")
     Text("복습 저장에 동의하면 연습 결과를 이 기기에 저장해요. 동의를 끄면 기록도 삭제돼요.")
-    Switch(checked = consent, onCheckedChange = {
-        consent = it; repository.consent = it
-        if (it && progress != PracticeProgress.READY) repository.save(progress == PracticeProgress.COMPLETE, source)
-    })
+    ReviewConsentControl(consent) { enabled ->
+        consent = enabled; repository.consent = enabled
+        if (enabled && progress != PracticeProgress.READY) repository.save(progress == PracticeProgress.COMPLETE, source)
+    }
+    if (progress != PracticeProgress.READY) {
+        val step = when (progress) {
+            PracticeProgress.WAIT_OFF -> 1
+            PracticeProgress.WAIT_ON -> 2
+            PracticeProgress.WAIT_FINAL_OFF, PracticeProgress.COMPLETE -> 3
+            PracticeProgress.READY -> 1
+        }
+        Text(if (progress == PracticeProgress.COMPLETE) "연습 완료 · 3 / 3" else "연습 단계 · $step / 3")
+        LinearProgressIndicator(progress = { if (progress == PracticeProgress.COMPLETE) 1f else (step - 1) / 3f })
+        Text("1. 끄기  →  2. 켜기  →  3. 다시 끄기")
+    }
     Text(progress.label, style = MaterialTheme.typography.titleLarge)
     Text("와이퍼: ${when (reading) { true -> "작동 중"; false -> "꺼짐"; null -> "확인 안 됨" }}")
     Text("연결 끊김·권한 부족·지원하지 않는 상태에서는 완료 처리하지 않아요. 주차 확인이 끊기거나 화면을 나가면 연습을 중단해요.")
@@ -70,10 +81,10 @@ fun ReviewScreen(onPractice: () -> Unit, onBack: () -> Unit) {
     Text("이 기기를 함께 쓰는 사람에게도 기록이 보여요. 현재는 사용자별 계정을 구분하지 않아요.")
     Text("복습 기록 저장 · ${if (consent) "켜짐" else "꺼짐"}")
     Text("끄면 현재 기록과 최근 이력이 삭제돼요.")
-    Switch(checked = consent, onCheckedChange = {
-        repository.consent = it; consent = it
+    ReviewConsentControl(consent) { enabled ->
+        repository.consent = enabled; consent = enabled
         record = repository.load(); history = repository.history()
-    })
+    }
     val saved = record
     if (saved == null) Text("저장된 기록이 없어요. 연습 화면에서 저장에 동의하면 기록을 남겨요.")
     else {
@@ -94,4 +105,18 @@ fun ReviewScreen(onPractice: () -> Unit, onBack: () -> Unit) {
         confirmButton = { TextButton(onClick = { repository.delete(); record = null; history = emptyList(); confirmDelete = false }) { Text("삭제") } },
         dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("취소") } })
     OutlinedButton(onClick = onBack) { Text("홈으로") }
+}
+
+/** Disabling consent deletes records, so a second explicit action is required. */
+@Composable
+internal fun ReviewConsentControl(enabled: Boolean, onChange: (Boolean) -> Unit) {
+    var confirm by remember { mutableStateOf(false) }
+    Switch(checked = enabled, onCheckedChange = { if (it) onChange(true) else confirm = true })
+    if (confirm) AlertDialog(
+        onDismissRequest = { confirm = false },
+        title = { Text("복습 기록 저장을 끌까요?") },
+        text = { Text("저장된 연습 기록과 이력이 모두 삭제돼요. 삭제한 기록은 복원할 수 없어요.") },
+        confirmButton = { TextButton(onClick = { confirm = false; onChange(false) }) { Text("끄고 기록 삭제") } },
+        dismissButton = { TextButton(onClick = { confirm = false }) { Text("취소") } },
+    )
 }
