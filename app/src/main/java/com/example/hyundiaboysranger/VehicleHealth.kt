@@ -1,6 +1,7 @@
 package com.example.hyundiaboysranger
 
-data class DoorReport(val name: String, val position: DoorPosition, val locked: Boolean?, val lockResult: SignalResult<Boolean> = locked?.let { SignalResult.Value(it) } ?: SignalResult.NoSignal) {
+data class DoorReport(val name: String, val position: DoorPosition, val locked: Boolean?, val lockResult: SignalResult<Boolean> = locked?.let { SignalResult.Value(it) } ?: SignalResult.NoSignal,
+    val positionResult: SignalResult<DoorPosition> = if (position == DoorPosition.UNKNOWN) SignalResult.NoSignal else SignalResult.Value(position)) {
     val explanation: String get() = when {
         position == DoorPosition.OPEN && locked == true -> "열림과 잠김 신호가 함께 조회됐어요. 문 상태를 직접 확인해 주세요."
         position == DoorPosition.OPEN -> "문 열림 신호가 조회됐어요. 문 상태를 직접 확인해 주세요."

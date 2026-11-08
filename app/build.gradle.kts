@@ -47,8 +47,8 @@ android {
 }
 
 dependencies {
-    implementation("ai.pleos.playground:Vehicle:2.3.2")
-    implementation("ai.pleos.playground:NaviHelper:3.0.5")
+    implementation(libs.pleos.vehicle)
+    implementation(libs.pleos.navi.helper)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
@@ -58,6 +58,8 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     testImplementation(libs.junit)
+    testImplementation(libs.gson) { isTransitive = false }
+    testImplementation(libs.error.prone.annotations)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)

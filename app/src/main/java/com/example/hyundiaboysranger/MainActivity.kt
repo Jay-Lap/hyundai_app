@@ -29,11 +29,16 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.Typography
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -43,6 +48,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import com.example.hyundiaboysranger.ui.theme.HyundiaBoysRangerTheme
 
 class MainActivity : ComponentActivity() {
@@ -81,21 +89,53 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun DrivingHelperApp(phonePreview: Boolean = false) {
+fun DrivingHelperApp(phonePreview: Boolean = false, parkingEvidence: ParkingEvidence? = null,
+    currentParking: () -> ParkingEvidence? = { parkingEvidence }) {
     var screen by rememberSaveable { mutableStateOf("home") }
+    var warningFocus by rememberSaveable { mutableStateOf<String?>(null) }
+    var warningBackToReview by rememberSaveable { mutableStateOf(false) }
     var checks by remember { mutableStateOf<Set<Int>>(emptySet()) }
     val context = LocalContext.current
     val settingsRepository = remember(context) { SettingsRepository(context) }
-    var settings by remember(settingsRepository) { mutableStateOf(settingsRepository.load()) }
+    val reviewRepository = remember(context) { ReviewRepository(context) }
+    val settingsScope = rememberCoroutineScope()
+    var settingsBusy by remember { mutableStateOf(false) }
+    var settings by remember(settingsRepository) {
+        mutableStateOf(if (settingsRepository.status().kind == SettingsStorageKind.WRITE_UNKNOWN) UserSettings() else settingsRepository.load())
+    }
+    var settingsStatus by remember(settingsRepository) { mutableStateOf(settingsRepository.status()) }
+    var overview by remember(screen, reviewRepository) { mutableStateOf<ReviewOverview?>(null) }
+    var hiddenProposalEvidence by rememberSaveable { mutableStateOf<String?>(null) }
+    var proposalMessage by remember { mutableStateOf("") }
 
-    DisposableEffect(settingsRepository) {
-        val stopObserving = settingsRepository.observe { settings = it }
-        onDispose { stopObserving() }
+    LaunchedEffect(screen, reviewRepository) {
+        if (screen == "home") overview = withContext(Dispatchers.IO) { reviewRepository.overview() }
     }
 
-    fun updateSettings(updated: UserSettings) {
-        settings = updated
-        settingsRepository.save(updated)
+    DisposableEffect(settingsRepository) {
+        val stopObserving = settingsRepository.observe {
+            settingsStatus = settingsRepository.status()
+            if (settingsStatus.writable) settings = settingsRepository.load()
+        }
+        onDispose { stopObserving() }
+    }
+    LaunchedEffect(settingsRepository) {
+        if (settingsRepository.status().kind == SettingsStorageKind.LEGACY) {
+            val migrated = withContext(Dispatchers.IO) { settingsRepository.migrateLegacy() }
+            if (migrated) settings = settingsRepository.load()
+            settingsStatus = settingsRepository.status()
+        }
+    }
+
+    fun updateSettings(updated: UserSettings, description: String = "설정 저장") {
+        if (settingsBusy) return
+        settingsBusy = true
+        settingsScope.launch {
+            val saved = withContext(Dispatchers.IO) { settingsRepository.save(updated, description) }
+            if (saved) settings = updated
+            settingsStatus = settingsRepository.status()
+            settingsBusy = false
+        }
     }
 
     val baseTypography = MaterialTheme.typography
@@ -109,7 +149,11 @@ fun DrivingHelperApp(phonePreview: Boolean = false) {
     }
     val colors = if (settings.highContrast) accessibleColors(dark)
         else if (dark) darkColorScheme() else lightColorScheme()
-    BackHandler(enabled = screen != "home") { screen = "home" }
+    BackHandler(enabled = screen != "home") {
+        if (screen == "warning_catalog" && warningBackToReview) {
+            screen = "review"; warningFocus = null; warningBackToReview = false
+        } else { screen = "home"; warningFocus = null; warningBackToReview = false }
+    }
     MaterialTheme(typography = appTypography, colorScheme = colors) {
         Surface(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -121,6 +165,11 @@ fun DrivingHelperApp(phonePreview: Boolean = false) {
                 style = MaterialTheme.typography.headlineLarge
             )
             Text("주차 중 편하게 준비하고 연습해요", style = MaterialTheme.typography.bodyLarge)
+            Text(androidx.compose.ui.res.stringResource(R.string.driver_responsibility))
+            if (!settingsStatus.writable && screen != "settings") {
+                Text(androidx.compose.ui.res.stringResource(R.string.settings_protected_banner))
+                OutlinedButton(onClick = { screen = "settings" }) { Text(androidx.compose.ui.res.stringResource(R.string.settings_action_view)) }
+            }
             if (phonePreview) InfoCard("휴대폰 에뮬레이터 화면 확인용", "차량 상태와 실제 주차 여부를 확인하지 않아요. 차량 기능은 Pleos 에뮬레이터에서 사용하세요.")
 
             if (phonePreview && screen in setOf("door", "route", "learn", "warnings")) {
@@ -128,11 +177,29 @@ fun DrivingHelperApp(phonePreview: Boolean = false) {
                 BackButton { screen = "home" }
             } else when (screen) {
                 "home" -> {
-                    InfoCard("현재 사용자", "${settings.profile.label} · 사용자 유형과 글자 크기를 기기에 저장해요.")
-                    val pendingReview = remember { ReviewRepository(context).load() }
-                    if (pendingReview?.complete == false) {
-                        InfoCard("다시 연습해 볼까요?", "완료하지 못한 와이퍼 연습이 있어요.")
-                        NavButton("와이퍼 복습 시작") { screen = "learn" }
+                    InfoCard("현재 사용자", if (settingsStatus.writable) "${settings.profile.label} · 사용자 유형과 글자 크기를 기기에 저장해요."
+                        else "저장된 설정을 확인하기 전까지 임시 기본값이 적용될 수 있어요.")
+                    if (!phonePreview) DiagnosticEntry { screen = "diagnostics" }
+                    TodayReviewSection(overview, settings.profile, onOpen = { item ->
+                        if (item.kind == "wiper") screen = "learn"
+                        else { warningFocus = item.id; warningBackToReview = false; screen = "warning_catalog" }
+                    })
+                    if (proposalMessage.isNotEmpty()) Text(proposalMessage)
+                    val proposalEvidence = overview?.takeIf { hasRepeatedExplicitStops(it.events) }
+                        ?.events?.take(4)?.joinToString("|") { "${attemptMarker(it)?.id}:${it.updatedAt}:${attemptMarker(it)?.phase}" }
+                    if (proposalEvidence != null && proposalEvidence != hiddenProposalEvidence && !settings.detailedGuidance && settingsStatus.writable) {
+                        GuidanceProposal(settingsBusy, onAccept = {
+                            if (!settingsBusy) {
+                                settingsBusy = true; proposalMessage = "설정을 저장하고 있어요."
+                                settingsScope.launch {
+                                    val saved = withContext(Dispatchers.IO) { settingsRepository.enableDetailedGuidance() }
+                                    settingsStatus = settingsRepository.status()
+                                    if (saved) settings = settingsRepository.load()
+                                    proposalMessage = if (saved) "상세 안내를 켰어요." else "저장 결과를 확인할 수 없어요. 설정 화면에서 상태를 확인해 주세요."
+                                    settingsBusy = false
+                                }
+                            }
+                        }, onDismiss = { hiddenProposalEvidence = proposalEvidence })
                     }
                     if (!settings.detailedGuidance) {
                         NavButton("경로 준비") { screen = "route" }
@@ -153,26 +220,29 @@ fun DrivingHelperApp(phonePreview: Boolean = false) {
                 "profile" -> {
                     ScreenTitle("사용자 유형", "고령자: 큰 글자·높은 대비·간단한 안내. 초보자: 보통 글자·상세 안내. 직접 설정은 현재 설정을 유지해요. 따로 지정한 글자 크기는 유형을 바꿔도 유지해요.")
                     UserProfile.entries.forEach { option ->
-                        OutlinedButton(onClick = { updateSettings(settings.withProfile(option)) }, modifier = Modifier.sizeIn(minHeight = 56.dp)) {
+                        OutlinedButton(onClick = { updateSettings(settings.withProfile(option)) }, enabled = settingsStatus.writable, modifier = Modifier.sizeIn(minHeight = 56.dp)) {
                             Text(if (settings.profile == option) "${option.label} · 선택됨" else option.label)
                         }
                     }
                     NavButton("글자 크기 따로 조절") { screen = "settings" }
                     BackButton { screen = "home" }
                 }
-                "checklist" -> DepartureChecklist(checks, { checks = it }, { screen = "home" })
+                "checklist" -> DepartureChecklist(checks, { checks = it }, { screen = "home" },
+                    onReview = { screen = "review" }, onRoute = { screen = "route" }, parkingEvidence = parkingEvidence,
+                    currentParking = currentParking)
                 "door" -> DoorStatusScreen(onBack = { screen = "home" })
                 "route" -> {
                     ScreenTitle("경로 준비", "선호를 저장하고 기본 내비게이션에서 목적지를 검색해요.")
                     Text("큰길 선호 · ${if (settings.preferWideRoads) "켜짐" else "꺼짐"}")
-                    androidx.compose.material3.Switch(checked = settings.preferWideRoads, onCheckedChange = {
+                    androidx.compose.material3.Switch(checked = settings.preferWideRoads, enabled = settingsStatus.writable, onCheckedChange = {
                         updateSettings(settings.copy(preferWideRoads = it))
                     })
                     Text("고속도로 선호 · ${if (settings.preferHighways) "켜짐" else "꺼짐"}")
-                    androidx.compose.material3.Switch(checked = settings.preferHighways, onCheckedChange = {
+                    androidx.compose.material3.Switch(checked = settings.preferHighways, enabled = settingsStatus.writable, onCheckedChange = {
                         updateSettings(settings.copy(preferHighways = it))
                     })
                     InfoCard("경로 선호", "큰길 선호는 저장만 해요. 고속도로 선호는 아래 경로 요청 옵션의 초기값에 반영돼요. 적용 버튼을 눌러야 요청돼요.")
+                    RouteComparisonScreen(RoutePreferences(settings.preferWideRoads, settings.preferHighways), settings.detailedGuidance)
                     var launchMessage by remember { mutableStateOf("") }
                     Button(onClick = {
                         val intent = context.packageManager.getLaunchIntentForPackage("ai.umos.maps.android.navigation.app")
@@ -187,13 +257,26 @@ fun DrivingHelperApp(phonePreview: Boolean = false) {
                 }
                 "learn" -> PracticeScreen(detailed = settings.detailedGuidance, onBack = { screen = "home" })
                 "warnings" -> VehicleHealthScreen(onBack = { screen = "home" })
-                "review" -> ReviewScreen(onPractice = { screen = "learn" }, onBack = { screen = "home" })
+                "warning_catalog" -> WarningCatalogScreen(onBack = {
+                    screen = if (warningBackToReview) "review" else "home"
+                    warningFocus = null; warningBackToReview = false
+                }, focusId = warningFocus)
+                "diagnostics" -> DiagnosticScreen(settings.preferHighways) { screen = "home" }
+                "review" -> ReviewScreen(onPractice = { screen = "learn" }, onWarning = { id ->
+                    warningFocus = id; warningBackToReview = true; screen = "warning_catalog"
+                }, onBack = { screen = "home" })
                 "settings" -> {
                     ScreenTitle("설정", "글자·색상·안내 방식을 바꾸면 즉시 적용돼요.")
+                    if (!settingsStatus.writable) {
+                        SettingsRecoverySection(settingsRepository, settingsStatus) {
+                            settingsStatus = settingsRepository.status()
+                            if (settingsStatus.writable) settings = settingsRepository.load()
+                        }
+                    } else {
                     Text("글자 크기 · ${settings.effectiveTextSizePercent}%")
                     Text("직접 고른 크기는 고령자·초보자를 바꿔도 유지돼요.")
                     var sliderValue by remember(settings.effectiveTextSizePercent) {
-                        mutableStateOf(settings.effectiveTextSizePercent.toFloat())
+                        mutableFloatStateOf(settings.effectiveTextSizePercent.toFloat())
                     }
                     Text("조절할 크기 · ${sliderValue.roundToInt()}% (100~200%)")
                     Slider(value = sliderValue, onValueChange = { sliderValue = it },
@@ -226,7 +309,8 @@ fun DrivingHelperApp(phonePreview: Boolean = false) {
                     Text("간단한 안내는 홈 메뉴와 연습 설명을 줄여요. 안전 안내와 연결 상태는 계속 표시해요.")
                     InfoCard("화면 예시", "설정은 지금 보는 제목·본문·버튼에도 적용돼요.")
                     Text("글자 크기는 사용자 유형과 별도로 저장돼요. 대비·화면 모드·상세도를 바꾸면 직접 설정으로 바뀌어요.")
-                    SettingsManagement { updateSettings(UserSettings()) }
+                    SettingsManagement { updateSettings(UserSettings(), "설정 초기화") }
+                    }
                     BackButton { screen = "home" }
                 }
             }
@@ -234,6 +318,20 @@ fun DrivingHelperApp(phonePreview: Boolean = false) {
     }
 }
 
+}
+
+@Composable
+internal fun GuidanceProposal(busy: Boolean, onAccept: () -> Unit, onDismiss: () -> Unit) {
+    var confirm by remember { mutableStateOf(false) }
+    InfoCard("상세 안내를 켜 볼까요?", "최근 와이퍼 연습 두 번을 직접 중단했어요. 상세 설명을 켜면 단계별 안내를 볼 수 있어요.")
+    Button(onClick = { confirm = true }, enabled = !busy) { Text("상세 안내 켜기") }
+    OutlinedButton(onClick = onDismiss, enabled = !busy) { Text("나중에 보기") }
+    OutlinedButton(onClick = onDismiss, enabled = !busy) { Text("닫기") }
+    if (confirm) AlertDialog(onDismissRequest = { confirm = false },
+        title = { Text("상세 안내를 켤까요?") },
+        text = { Text("안내 상세도만 변경해요.") },
+        confirmButton = { TextButton(onClick = { confirm = false; onAccept() }) { Text("켜기") } },
+        dismissButton = { TextButton(onClick = { confirm = false }) { Text("취소") } })
 }
 
 @Composable
@@ -247,9 +345,10 @@ private fun DoorStatusScreen(onBack: () -> Unit) {
     }
 
     ScreenTitle("운전석 문 상태", "주차 중 조회 버튼을 눌러 상태를 확인해요.")
+    if (!VehicleSdkAccess.enabled) Text(androidx.compose.ui.res.stringResource(R.string.vehicle_safety_blocked))
     InfoCard("문 열림·닫힘", result)
     Text("마지막으로 조회한 값이에요. 잠금 상태는 확인하지 않으며, 현재 상태와 다를 수 있어요.")
-    Button(onClick = { reader.read { result = it } }) { Text("문 상태 조회") }
+    Button(onClick = { reader.read { result = it } }, enabled = VehicleSdkAccess.enabled) { Text("문 상태 조회") }
     BackButton(onClick = onBack)
 }
 
@@ -294,20 +393,26 @@ private fun InfoCard(title: String, description: String) {
 
 @Composable
 private fun NavButton(label: String, onClick: () -> Unit) {
-    Button(onClick = onClick, modifier = Modifier.sizeIn(minHeight = 56.dp)) { Text(label) }
+    Button(onClick = onClick, modifier = Modifier.sizeIn(minHeight = com.example.hyundiaboysranger.ui.theme.DesignTokens.touchMinimum)) { Text(label) }
 }
 
 @Composable
 private fun BackButton(onClick: () -> Unit) {
-    OutlinedButton(onClick = onClick, modifier = Modifier.sizeIn(minHeight = 56.dp)) { Text("홈으로") }
+    OutlinedButton(onClick = onClick, modifier = Modifier.sizeIn(minHeight = com.example.hyundiaboysranger.ui.theme.DesignTokens.touchMinimum)) { Text(androidx.compose.ui.res.stringResource(R.string.checklist_home)) }
+}
+
+internal enum class HomeDestination(val key: String, val title: Int) {
+    CHECKLIST("checklist", R.string.home_checklist), DOOR("door", R.string.home_door),
+    ROUTE("route", R.string.home_route), LEARN("learn", R.string.home_learn),
+    WARNINGS("warnings", R.string.home_warnings), CATALOG("warning_catalog", R.string.warning_catalog_title),
+    REVIEW("review", R.string.home_review), PROFILE("profile", R.string.home_profile), SETTINGS("settings", R.string.home_settings)
 }
 
 @Composable
 private fun HomeActions(onNavigate: (String) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        listOf("checklist" to "출발 전 점검", "door" to "운전석 문 상태", "route" to "경로 준비", "learn" to "차량 조작 배우기",
-            "warnings" to "차량 상태·경고 도움말", "review" to "내 복습", "profile" to "사용자 유형", "settings" to "설정").forEach { (key, title) ->
-            NavButton(title) { onNavigate(key) }
+        HomeDestination.entries.forEach { destination ->
+            NavButton(androidx.compose.ui.res.stringResource(destination.title)) { onNavigate(destination.key) }
         }
     }
 }

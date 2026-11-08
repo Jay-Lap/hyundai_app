@@ -10,15 +10,32 @@ import android.content.Context
 import android.os.SystemClock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
 
 /** Each read fails closed. No synthetic P state or remembered permission is used. */
 internal class AndroidCarParkingMonitor(private val context: Context) {
     private var car: Car? = null
+    private var connectionStartedAt = 0L
+    private var wasConnected = false
 
     suspend fun read(): ParkingEvidence = withContext(Dispatchers.IO) {
         try {
-            val active = car ?: Car.createCar(context).also { car = it }
-            if (active == null || !active.isConnected) return@withContext ParkingEvidence()
+            val active = car ?: Car.createCar(context).also {
+                car = it
+                connectionStartedAt = SystemClock.elapsedRealtime()
+                wasConnected = false
+            }
+            if (active == null) return@withContext ParkingEvidence()
+            if (!active.isConnected) {
+                if (wasConnected || SystemClock.elapsedRealtime() - connectionStartedAt > 5_000) {
+                    try { active.disconnect() } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { }
+                    car = null
+                    wasConnected = false
+                }
+                return@withContext ParkingEvidence()
+            }
+            wasConnected = true
             val properties = active.getCarManager(Car.PROPERTY_SERVICE) as CarPropertyManager
             val ux = active.getCarManager(Car.CAR_UX_RESTRICTION_SERVICE) as CarUxRestrictionsManager
             val gear = properties.getProperty<Int>(VehiclePropertyIds.GEAR_SELECTION, 0)
@@ -30,7 +47,8 @@ internal class AndroidCarParkingMonitor(private val context: Context) {
                 unrestricted = restriction != null && !restriction.isRequiresDistractionOptimization && restriction.activeRestrictions == 0,
                 observedAt = SystemClock.elapsedRealtime(),
             )
-        } catch (_: LinkageError) { ParkingEvidence() }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: LinkageError) { ParkingEvidence() }
         catch (_: Exception) { ParkingEvidence() }
     }
 
@@ -39,6 +57,6 @@ internal class AndroidCarParkingMonitor(private val context: Context) {
             // Optional platform library unavailable.
         } catch (_: Exception) {
             // Service already disconnected.
-        } finally { car = null }
+        } finally { car = null; wasConnected = false }
     }
 }

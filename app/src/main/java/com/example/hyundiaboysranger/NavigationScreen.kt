@@ -33,6 +33,11 @@ fun NavigationScreen(preferHighways: Boolean) {
     Text("기본 내비게이션 연동", style = MaterialTheme.typography.titleLarge)
     Text("기본 내비게이션 SDK 응답을 표시해요.")
     Text(session.status)
+    session.optionEvidence?.let { evidence ->
+        Text("옵션 관찰 · 요청 전 ${evidence.before} / 요청 ${evidence.requested} / 콜백 ${evidence.callback ?: "미수신"} / 재조회 ${evidence.after ?: "미확인"}")
+        Text("요청 식별자가 없어 콜백과 재조회가 이 요청의 결과인지는 확정할 수 없어요.")
+    }
+    NavigationDebugDetails(session)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedButton(onClick = session::connect, enabled = !session.busy) { Text("다시 연결") }
         Button(onClick = session::refresh, enabled = session.connected && !session.busy) { Text("정보 조회") }

@@ -7,6 +7,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class VoiceTextSizeControl(val available: Boolean, val message: String, val launch: () -> Unit)
 val LocalVoiceTextSize = staticCompositionLocalOf {
@@ -17,6 +20,7 @@ val LocalVoiceTextSize = staticCompositionLocalOf {
 @Composable
 fun VoiceTextSizeHost(content: @Composable () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var message by rememberSaveableMessage()
     val intent = remember {
         Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -30,13 +34,19 @@ fun VoiceTextSizeHost(content: @Composable () -> Unit) {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
         val percent = spoken?.let(::parseTextSizeVoice)
-        message = when {
-            result.resultCode != Activity.RESULT_OK -> "음성 입력을 취소했거나 인식하지 못했어요."
-            percent == null -> "100부터 200퍼센트 사이의 크기를 하나만 말해 주세요."
+        when {
+            result.resultCode != Activity.RESULT_OK -> message = "음성 입력을 취소했거나 인식하지 못했어요."
+            percent == null -> message = "100부터 200퍼센트 사이의 크기를 하나만 말해 주세요."
             else -> {
-                val repository = SettingsRepository(context)
-                repository.save(repository.load().withTextSize(percent))
-                "글자 크기를 ${percent}%로 저장했어요."
+                message = "글자 크기를 저장하고 있어요."
+                scope.launch {
+                    val success = withContext(Dispatchers.IO) {
+                        val repository = SettingsRepository(context)
+                        repository.loadIfReadable()?.let { repository.save(it.withTextSize(percent)) } == true
+                    }
+                    message = if (success) "글자 크기를 ${percent}%로 저장했어요."
+                    else "글자 크기 저장 결과를 확인할 수 없어요. 설정 화면에서 상태를 확인해 주세요."
+                }
             }
         }
     }

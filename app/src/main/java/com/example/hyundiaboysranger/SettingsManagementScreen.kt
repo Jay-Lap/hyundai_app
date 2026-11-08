@@ -3,32 +3,49 @@ package com.example.hyundiaboysranger
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.example.hyundiaboysranger.ui.theme.DesignTokens
+
+internal enum class SettingsResetEvent { REQUEST, CANCEL, CONFIRM }
+internal fun resetConfirmationVisible(visible: Boolean, event: SettingsResetEvent): Boolean = when (event) {
+    SettingsResetEvent.REQUEST -> true
+    SettingsResetEvent.CANCEL, SettingsResetEvent.CONFIRM -> false
+}
+
+@Composable
+internal fun SettingsResetControl(onReset: () -> Unit) {
+    var confirmReset by remember { mutableStateOf(false) }
+    OutlinedButton(onClick = { confirmReset = resetConfirmationVisible(confirmReset, SettingsResetEvent.REQUEST) },
+        modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.settings_reset)) }
+    if (confirmReset) AlertDialog(onDismissRequest = { confirmReset = resetConfirmationVisible(confirmReset, SettingsResetEvent.CANCEL) },
+        title = { Text(stringResource(R.string.settings_reset_title)) },
+        text = { Text(stringResource(R.string.settings_reset_details)) },
+        confirmButton = { TextButton(onClick = { confirmReset = resetConfirmationVisible(confirmReset, SettingsResetEvent.CONFIRM); onReset() }) { Text(stringResource(R.string.settings_reset_confirm)) } },
+        dismissButton = { TextButton(onClick = { confirmReset = resetConfirmationVisible(confirmReset, SettingsResetEvent.CANCEL) }) { Text(stringResource(R.string.action_cancel)) } })
+}
 
 @Composable
 fun SettingsManagement(onReset: () -> Unit) {
     val transfer = LocalSettingsTransfer.current
-    var confirmReset by remember { mutableStateOf(false) }
     LocalSettingsBackupScreen()
-    Text("파일로 설정 내보내기·가져오기", style = MaterialTheme.typography.titleLarge)
-    Text("파일 선택기를 제공하지 않는 기기에서는 위의 내부 백업을 이용해 주세요.")
+    Text(stringResource(R.string.settings_transfer_title), style = MaterialTheme.typography.titleLarge)
+    Text(stringResource(R.string.settings_transfer_fallback))
     Text(transfer.message)
+    if (!transfer.canExport) Text(stringResource(R.string.settings_export_unavailable))
+    if (!transfer.canImport) Text(stringResource(R.string.settings_import_unavailable))
     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedButton(onClick = transfer.export, enabled = !transfer.busy) { Text("설정 파일 저장") }
-        OutlinedButton(onClick = transfer.import, enabled = !transfer.busy) { Text("설정 파일 가져오기") }
+        OutlinedButton(onClick = transfer.export, enabled = !transfer.busy && transfer.canExport, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.settings_export)) }
+        OutlinedButton(onClick = transfer.import, enabled = !transfer.busy && transfer.canImport, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.settings_import)) }
     }
     transfer.pending?.let { imported ->
-        Text("복원할 설정: ${imported.profile.label} · 글자 ${imported.effectiveTextSizePercent}% · ${imported.displayMode.label}")
-        Text("현재 사용자 유형·화면 설정·경로 선호가 파일의 값으로 바뀌어요.")
+        Text(stringResource(R.string.settings_restore_preview, imported.profile.label, imported.effectiveTextSizePercent, imported.displayMode.label))
+        Text(stringResource(R.string.settings_restore_details))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = transfer.confirm) { Text("이 설정으로 복원") }
-            OutlinedButton(onClick = transfer.cancel) { Text("복원 취소") }
+            Button(onClick = transfer.confirm, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.settings_restore)) }
+            OutlinedButton(onClick = transfer.cancel, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.settings_restore_cancel)) }
         }
     }
-    OutlinedButton(onClick = { confirmReset = true }) { Text("설정 초기화") }
-    if (confirmReset) AlertDialog(onDismissRequest = { confirmReset = false },
-        title = { Text("설정을 처음 상태로 되돌릴까요?") },
-        text = { Text("사용자 유형·글자·색상·경로 선호가 초기화돼요. 복습 기록은 내 복습에서 별도로 관리해요.") },
-        confirmButton = { TextButton(onClick = { onReset(); confirmReset = false }) { Text("초기화") } },
-        dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("취소") } })
+    SettingsResetControl(onReset)
 }

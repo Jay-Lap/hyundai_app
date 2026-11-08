@@ -18,8 +18,18 @@ class VehicleDoorReader(context: Context) {
     private val latestRequest = AtomicInteger(0)
     private var vehicle: Vehicle? = null
 
+    private fun failureMessage(error: Throwable): String = appContext.getString(when (signalFailure(error)) {
+        SignalResult.PermissionDenied -> R.string.signal_permission
+        SignalResult.Unsupported -> R.string.signal_unsupported
+        SignalResult.Restricted -> R.string.signal_restricted
+        SignalResult.ServiceUnavailable -> R.string.signal_service_unavailable
+        SignalResult.NoSignal -> R.string.signal_no_data
+        else -> R.string.signal_error
+    })
+
     fun read(onResult: (String) -> Unit) {
         if (disposed.get()) return
+        if (!VehicleSdkAccess.enabled) { onResult(appContext.getString(R.string.vehicle_safety_blocked)); return }
         val requestId = latestRequest.incrementAndGet()
         val completed = AtomicBoolean(false)
 
@@ -34,7 +44,7 @@ class VehicleDoorReader(context: Context) {
         mainHandler.postDelayed({ finish("응답이 늦어 확인하지 못했어요. 다시 조회해 주세요.") }, 10_000)
 
         try {
-            val activeVehicle = vehicle ?: Vehicle(appContext).also {
+            val activeVehicle = vehicle ?: (VehicleSdkAccess.create { Vehicle(appContext) } ?: return).also {
                 try {
                     it.initialize()
                 } catch (error: Exception) {
@@ -53,8 +63,10 @@ class VehicleDoorReader(context: Context) {
                 onComplete = { config, areaBounds ->
                     if (!disposed.get() && !completed.get() && latestRequest.get() == requestId) {
                         val bounds = areaBounds[area]
-                        if ((config.accessType != AccessType.READ && config.accessType != AccessType.READ_WRITE) || bounds == null) {
-                            finish("이 차량에서 운전석 문 상태 조회를 지원하는지 확인할 수 없어요.")
+                        if (config.accessType != AccessType.READ && config.accessType != AccessType.READ_WRITE) {
+                            finish(appContext.getString(R.string.signal_read_unavailable))
+                        } else if (bounds == null) {
+                            finish(appContext.getString(R.string.signal_area_not_reported))
                         } else {
                             try {
                                 door.getCurrentDoorPosition(
@@ -67,18 +79,18 @@ class VehicleDoorReader(context: Context) {
                                         }
                                         finish(message)
                                     },
-                                    onFailed = { finish("문 상태를 확인하지 못했어요. 차량 연결과 권한을 확인해 주세요.") },
+                                    onFailed = { finish(failureMessage(it)) },
                                 )
-                            } catch (_: Exception) {
-                                finish("문 상태를 확인하지 못했어요. 차량 연결과 권한을 확인해 주세요.")
+                            } catch (error: Exception) {
+                                finish(failureMessage(error))
                             }
                         }
                     }
                 },
-                onFailed = { finish("문 상태 조회 지원 여부를 확인하지 못했어요.") },
+                onFailed = { finish(failureMessage(it)) },
             )
-        } catch (_: Exception) {
-            finish("차량 서비스에 연결하지 못했어요. 다시 조회해 주세요.")
+        } catch (error: Exception) {
+            finish(failureMessage(error))
         }
     }
 
