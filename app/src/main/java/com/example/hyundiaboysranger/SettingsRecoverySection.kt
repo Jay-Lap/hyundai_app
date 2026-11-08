@@ -15,7 +15,7 @@ internal fun SettingsRecoverySection(repository: SettingsRepository, status: Set
     var failed by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     if (status.kind == SettingsStorageKind.WRITE_UNKNOWN) {
-        Text("${repository.pendingWriteDescription() ?: "설정 작업"}의 디스크 기록 결과를 확인하지 못했어요. 현재 화면 값은 디스크 상태의 증거가 아니에요. 같은 작업을 다시 시도하거나 앱을 완전히 종료한 후 다시 열어 상태를 확인해 주세요.")
+        Text(stringResource(R.string.settings_write_unknown, repository.pendingWriteDescription() ?: stringResource(R.string.settings_operation)))
         OutlinedButton(onClick = {
             busy = true
             scope.launch {
@@ -23,7 +23,7 @@ internal fun SettingsRecoverySection(repository: SettingsRepository, status: Set
                 busy = false
                 onChanged()
             }
-        }, enabled = !busy) { Text("같은 설정 작업 다시 시도") }
+        }, enabled = !busy) { Text(stringResource(R.string.settings_retry_same)) }
         return
     }
     val message = when (status.kind) {

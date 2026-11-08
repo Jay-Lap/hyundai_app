@@ -28,8 +28,9 @@ private fun sdkSource(): String = if (Build.FINGERPRINT.contains("generic") ||
     "EMU_SDK · 에뮬레이터" else "SDK · 실차 여부 미검증"
 
 @Composable
-fun PracticeScreen(detailed: Boolean = true, onBack: () -> Unit) {
+fun PracticeScreen(detailed: Boolean = true, backLabelResource: Int = R.string.checklist_home, onBack: () -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val repository = remember { ReviewRepository(context) }
     val scope = rememberCoroutineScope()
     var consent by remember { mutableStateOf(repository.consent) }
@@ -98,7 +99,7 @@ fun PracticeScreen(detailed: Boolean = true, onBack: () -> Unit) {
         startWrite = if (consent) scope.async {
             val success = withContext(Dispatchers.IO) { repository.saveAttempt(id, "start", source) }
             reviewStatus = repository.storageStatus()
-            reviewMessage = if (!success && reviewStatus == ReviewStorageStatus.NORMAL) "와이퍼 복습 기록을 저장하지 못했어요. 기존 기록을 확인해 주세요." else ""
+            reviewMessage = if (!success && reviewStatus == ReviewStorageStatus.NORMAL) resources.getString(R.string.review_wiper_start_failed) else ""
             success
         } else null
     }, enabled = VehicleSdkAccess.enabled && (progress == PracticeProgress.READY || progress == PracticeProgress.COMPLETE),
@@ -127,7 +128,7 @@ fun PracticeScreen(detailed: Boolean = true, onBack: () -> Unit) {
                                 } else repository.save(true, source)
                             }
                             reviewStatus = repository.storageStatus()
-                            reviewMessage = if (!success && reviewStatus == ReviewStorageStatus.NORMAL) "연습은 끝났지만 복습 기록을 저장하지 못했어요. 기존 기록을 확인해 주세요." else ""
+                            reviewMessage = if (!success && reviewStatus == ReviewStorageStatus.NORMAL) resources.getString(R.string.review_wiper_complete_write_failed) else ""
                         }
                         progress = PracticeProgress.COMPLETE
                         stopping = false
@@ -150,14 +151,14 @@ fun PracticeScreen(detailed: Boolean = true, onBack: () -> Unit) {
                 onBack()
             }
         }
-    }, enabled = !stopping, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(if (running) R.string.wiper_stop else R.string.checklist_home)) }
+    }, enabled = !stopping, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(if (running) R.string.wiper_stop else backLabelResource)) }
     Text(stringResource(R.string.other_lessons_title), style = MaterialTheme.typography.titleLarge)
     ExtraLesson.entries.forEach { lesson -> ExtraLessonGuide(lesson) }
 }
 
 @Composable
-internal fun ExtraLessonGuide(lesson: ExtraLesson) {
-    var state by remember(lesson) { mutableStateOf(ExtraLessonUiState()) }
+internal fun ExtraLessonGuide(lesson: ExtraLesson, initiallyExpanded: Boolean = false) {
+    var state by remember(lesson, initiallyExpanded) { mutableStateOf(ExtraLessonUiState(expanded = initiallyExpanded)) }
     OutlinedButton(onClick = { state = reduceExtraLesson(state, ExtraLessonUiEvent.Toggle) },
         modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) {
         Text(stringResource(if (state.expanded) R.string.lesson_close_guide else R.string.lesson_open_guide, stringResource(lesson.titleResource)))
@@ -174,6 +175,25 @@ internal fun ExtraLessonGuide(lesson: ExtraLesson) {
 
 internal data class SavedWarningUiState(val title: String, val updatedAt: String, val busy: Boolean)
 internal enum class SavedWarningUiEvent { OPEN, DELETE }
+internal enum class ReviewDeleteEvent { CONFIRM, CANCEL }
+
+@Composable
+internal fun ReviewDeleteDialog(title: String, description: String, onEvent: (ReviewDeleteEvent) -> Unit) {
+    AlertDialog(onDismissRequest = { onEvent(ReviewDeleteEvent.CANCEL) }, title = { Text(title) }, text = { Text(description) },
+        confirmButton = { TextButton(onClick = { onEvent(ReviewDeleteEvent.CONFIRM) }) { Text(stringResource(R.string.review_delete_action)) } },
+        dismissButton = { TextButton(onClick = { onEvent(ReviewDeleteEvent.CANCEL) }) { Text(stringResource(R.string.action_cancel)) } })
+}
+internal data class ReviewHistoryUiState(val complete: Boolean, val phase: String?, val updatedAt: String, val source: String)
+internal fun reviewHistoryLabel(state: ReviewHistoryUiState): Int = when {
+    state.complete -> R.string.review_history_complete
+    state.phase == "stop" -> R.string.review_history_stopped
+    else -> R.string.review_history_started
+}
+
+@Composable
+internal fun ReviewHistoryRow(state: ReviewHistoryUiState) {
+    Text(stringResource(R.string.review_history_row, state.updatedAt, stringResource(reviewHistoryLabel(state)), state.source))
+}
 
 @Composable
 internal fun SavedWarningRow(state: SavedWarningUiState, onEvent: (SavedWarningUiEvent) -> Unit) {
@@ -212,7 +232,7 @@ fun ReviewScreen(onPractice: () -> Unit, onWarning: (String) -> Unit, onBack: ()
             val migrated = withContext(Dispatchers.IO) { repository.migrateLegacy() }
             storageStatus = repository.storageStatus()
             if (storageStatus == ReviewStorageStatus.NORMAL) warnings = repository.items().filter { it.kind == "warning" }
-            migrationMessage = if (!migrated && storageStatus == ReviewStorageStatus.NORMAL) "기존 복습 기록을 새 형식으로 옮기지 못했어요. 원본을 유지하며 일부 새 저장을 사용할 수 없어요." else ""
+            migrationMessage = if (!migrated && storageStatus == ReviewStorageStatus.NORMAL) resources.getString(R.string.review_migration_failed) else ""
         }
     }
     Text(stringResource(R.string.home_review), style = MaterialTheme.typography.headlineMedium)
@@ -229,7 +249,7 @@ fun ReviewScreen(onPractice: () -> Unit, onWarning: (String) -> Unit, onBack: ()
             warnings = repository.items().filter { it.kind == "warning" }
         }
     }
-    Text(if (storageStatus == ReviewStorageStatus.WRITE_UNKNOWN) "복습 기록 저장 상태 확인 필요" else "복습 기록 저장 · ${if (consent) "켜짐" else "꺼짐"}")
+    Text(if (storageStatus == ReviewStorageStatus.WRITE_UNKNOWN) stringResource(R.string.review_storage_unknown) else stringResource(R.string.review_storage_status, stringResource(if (consent) R.string.backup_on else R.string.backup_off)))
     Text(stringResource(R.string.review_consent_removal_notice))
     if (storageStatus == ReviewStorageStatus.NORMAL) ReviewConsentControl(consent, !busy) { enabled ->
         busy = true
@@ -241,21 +261,20 @@ fun ReviewScreen(onPractice: () -> Unit, onWarning: (String) -> Unit, onBack: ()
         }
     }
     val saved = if (storageStatus == ReviewStorageStatus.NORMAL) record else null
-    Text("와이퍼 연습", style = MaterialTheme.typography.titleLarge)
-    if (saved == null && storageStatus == ReviewStorageStatus.NORMAL) Text("저장된 와이퍼 기록이 없어요.")
+    Text(stringResource(R.string.review_wiper_title), style = MaterialTheme.typography.titleLarge)
+    if (saved == null && storageStatus == ReviewStorageStatus.NORMAL) Text(stringResource(R.string.review_wiper_empty))
     else if (saved != null) {
-        Text("앞유리 와이퍼 · ${if (saved.complete) "완료" else "미완료"}", style = MaterialTheme.typography.titleLarge)
-        Text("${DateFormat.getDateTimeInstance().format(Date(saved.updatedAt))} · ${saved.source}")
+        Text(stringResource(R.string.review_wiper_state, stringResource(if (saved.complete) R.string.review_history_complete else R.string.review_wiper_incomplete)), style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.review_warning_timestamp, DateFormat.getDateTimeInstance().format(Date(saved.updatedAt)), saved.source))
         Button(onClick = onPractice, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.review_wiper_reopen)) }
         OutlinedButton(onClick = { confirmDelete = true }, enabled = !busy, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.review_wiper_delete)) }
     }
     if (storageStatus == ReviewStorageStatus.NORMAL && history.isNotEmpty()) {
-        Text("최근 연습 이력 · 최대 20건", style = MaterialTheme.typography.titleLarge)
-        Text("시작·완료·직접 중단을 기록해요. 일부 이전 기록은 종료 여부를 알 수 없어요.")
+        Text(stringResource(R.string.review_history_title), style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.review_history_details))
         history.forEachIndexed { index, item ->
             val phase = reviewEvents.getOrNull(index)?.let(::attemptMarker)?.phase
-            val label = if (item.complete) "완료" else if (phase == "stop") "직접 중단" else "시작/진행 중"
-            Text("${DateFormat.getDateTimeInstance().format(Date(item.updatedAt))} · $label · ${item.source}")
+            ReviewHistoryRow(ReviewHistoryUiState(item.complete, phase, DateFormat.getDateTimeInstance().format(Date(item.updatedAt)), item.source))
         }
     }
     if (storageStatus == ReviewStorageStatus.NORMAL) {
@@ -263,7 +282,7 @@ fun ReviewScreen(onPractice: () -> Unit, onWarning: (String) -> Unit, onBack: ()
         Text(stringResource(R.string.review_warning_not_detection))
         if (warnings.isEmpty()) Text(stringResource(R.string.review_warning_empty))
         warnings.forEach { item ->
-            val title = catalog.firstOrNull { it.id == item.id }?.title ?: "사전에서 찾을 수 없는 항목 (${item.id})"
+            val title = catalog.firstOrNull { it.id == item.id }?.title ?: stringResource(R.string.review_missing_warning, item.id)
             SavedWarningRow(SavedWarningUiState(title, DateFormat.getDateTimeInstance().format(Date(item.updatedAt)), busy)) { event ->
                 when (event) { SavedWarningUiEvent.OPEN -> onWarning(item.id); SavedWarningUiEvent.DELETE -> warningToDelete = item }
             }
@@ -271,32 +290,31 @@ fun ReviewScreen(onPractice: () -> Unit, onWarning: (String) -> Unit, onBack: ()
     }
     warningToDelete?.let { item ->
         val title = catalog.firstOrNull { it.id == item.id }?.title ?: item.id
-        AlertDialog(onDismissRequest = { warningToDelete = null }, title = { Text("$title 학습 항목을 삭제할까요?") },
-            text = { Text("이 경고등 학습 항목만 복습에서 삭제해요. 와이퍼 기록과 다른 경고등 항목은 유지돼요.") },
-            confirmButton = { TextButton(onClick = {
+        ReviewDeleteDialog(stringResource(R.string.review_warning_delete_title, title), stringResource(R.string.review_warning_delete_details)) { event ->
+            if (event == ReviewDeleteEvent.CANCEL) warningToDelete = null else {
                 warningToDelete = null; busy = true
                 scope.launch {
                     val success = withContext(Dispatchers.IO) { repository.deleteWarning(item.id) }
                     storageStatus = repository.storageStatus()
                     if (success) warnings = repository.items().filter { it.kind == "warning" }
-                    actionMessage = if (!success && storageStatus == ReviewStorageStatus.NORMAL) "해당 항목을 삭제하지 못했어요. 목록을 다시 확인해 주세요." else ""
+                    actionMessage = if (!success && storageStatus == ReviewStorageStatus.NORMAL) resources.getString(R.string.review_warning_delete_failed) else ""
                     busy = false
                 }
-            }) { Text("삭제") } }, dismissButton = { TextButton(onClick = { warningToDelete = null }) { Text("취소") } })
+            }
+        }
     }
-    if (confirmDelete) AlertDialog(onDismissRequest = { confirmDelete = false },
-        title = { Text("와이퍼 기록을 삭제할까요?") }, text = { Text("와이퍼 현재 기록과 최근 이력이 모두 삭제돼요. 경고등 학습 항목은 유지돼요.") },
-        confirmButton = { TextButton(onClick = {
+    if (confirmDelete) ReviewDeleteDialog(stringResource(R.string.review_wiper_delete_title), stringResource(R.string.review_wiper_delete_details)) { event ->
+        if (event == ReviewDeleteEvent.CANCEL) confirmDelete = false else {
             confirmDelete = false; busy = true
             scope.launch {
                 val success = withContext(Dispatchers.IO) { repository.delete() }
                 storageStatus = repository.storageStatus()
                 if (success) { record = null; history = emptyList(); reviewEvents = emptyList() }
-                actionMessage = if (!success && storageStatus == ReviewStorageStatus.NORMAL) "와이퍼 기록을 삭제하지 못했어요. 현재 상태를 다시 확인해 주세요." else ""
+                actionMessage = if (!success && storageStatus == ReviewStorageStatus.NORMAL) resources.getString(R.string.review_wiper_delete_failed) else ""
                 busy = false
             }
-        }) { Text("삭제") } },
-        dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("취소") } })
+        }
+    }
     OutlinedButton(onClick = onBack, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.checklist_home)) }
 }
 

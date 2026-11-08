@@ -19,6 +19,16 @@ internal data class WarningCardState(val entry: WarningEntry, val saved: Boolean
     val canAdd: Boolean get() = !busy && storageNormal && !saved
 }
 internal sealed interface WarningCardEvent { data object Add : WarningCardEvent }
+internal enum class WarningConsentEvent { ACCEPT, CANCEL }
+
+@Composable
+internal fun WarningConsentDialog(title: String, onEvent: (WarningConsentEvent) -> Unit) {
+    AlertDialog(onDismissRequest = { onEvent(WarningConsentEvent.CANCEL) },
+        title = { Text(stringResource(R.string.warning_consent_title)) },
+        text = { Text(stringResource(R.string.warning_consent_details, title)) },
+        confirmButton = { TextButton(onClick = { onEvent(WarningConsentEvent.ACCEPT) }) { Text(stringResource(R.string.warning_consent_accept)) } },
+        dismissButton = { TextButton(onClick = { onEvent(WarningConsentEvent.CANCEL) }) { Text(stringResource(R.string.action_cancel)) } })
+}
 
 @Composable
 internal fun WarningCard(state: WarningCardState, onEvent: (WarningCardEvent) -> Unit) {
@@ -36,7 +46,8 @@ internal fun WarningCard(state: WarningCardState, onEvent: (WarningCardEvent) ->
 }
 
 @Composable
-fun WarningCatalogScreen(onBack: () -> Unit, focusId: String? = null, reviewRepository: ReviewRepository? = null) {
+fun WarningCatalogScreen(onBack: () -> Unit, focusId: String? = null, reviewRepository: ReviewRepository? = null,
+    backLabelResource: Int = R.string.warning_catalog_back) {
     val resources = LocalResources.current
     val context = LocalContext.current
     val repository = remember(context, reviewRepository) { reviewRepository ?: ReviewRepository(context) }
@@ -68,27 +79,25 @@ fun WarningCatalogScreen(onBack: () -> Unit, focusId: String? = null, reviewRepo
                     val success = withContext(Dispatchers.IO) { repository.addWarning(entry.id) }
                     status = repository.storageStatus()
                     if (success) saved = repository.items()
-                    message = if (success) "${entry.title} 학습 항목을 복습에 추가했어요." else "추가 결과를 확인해 주세요. 저장 상태를 확인하거나 다시 시도할 수 있어요."
+                    message = if (success) resources.getString(R.string.warning_add_success, entry.title) else resources.getString(R.string.warning_add_unconfirmed)
                     busy = false
                 }
             }
         }
     }
     pendingConsent?.let { entry ->
-        AlertDialog(onDismissRequest = { pendingConsent = null },
-            title = { Text("복습 기록을 저장할까요?") },
-            text = { Text("복습 저장이 꺼져 있어요. 동의하면 ${entry.title} 학습 항목을 이 기기에 저장해요. 차량의 경고등 감지 기록이 아니에요.") },
-            confirmButton = { TextButton(onClick = {
+        WarningConsentDialog(entry.title) { event ->
+            if (event == WarningConsentEvent.CANCEL) pendingConsent = null else {
                 pendingConsent = null; busy = true
                 scope.launch {
                     val success = withContext(Dispatchers.IO) { repository.setConsent(true) && repository.addWarning(entry.id) }
                     status = repository.storageStatus()
                     if (status == ReviewStorageStatus.NORMAL) { consent = repository.consent; saved = repository.items() }
-                    message = if (success) "${entry.title} 학습 항목을 복습에 추가했어요." else "추가 결과를 확인해 주세요. 동의와 저장 상태를 확인할 수 있어요."
+                    message = if (success) resources.getString(R.string.warning_add_success, entry.title) else resources.getString(R.string.warning_consent_unconfirmed)
                     busy = false
                 }
-            }) { Text("동의하고 추가") } },
-            dismissButton = { TextButton(onClick = { pendingConsent = null }) { Text("취소") } })
+            }
+        }
     }
-    OutlinedButton(onClick = onBack) { Text(stringResource(R.string.warning_catalog_back)) }
+    OutlinedButton(onClick = onBack, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(backLabelResource)) }
 }

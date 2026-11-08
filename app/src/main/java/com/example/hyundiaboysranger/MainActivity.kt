@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Slider
-import kotlin.math.roundToInt
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.activity.compose.BackHandler
@@ -94,6 +93,7 @@ fun DrivingHelperApp(phonePreview: Boolean = false, parkingEvidence: ParkingEvid
     var screen by rememberSaveable { mutableStateOf("home") }
     var warningFocus by rememberSaveable { mutableStateOf<String?>(null) }
     var warningBackToReview by rememberSaveable { mutableStateOf(false) }
+    var warningBackToConcern by rememberSaveable { mutableStateOf(false) }
     var checks by remember { mutableStateOf<Set<Int>>(emptySet()) }
     val context = LocalContext.current
     val settingsRepository = remember(context) { SettingsRepository(context) }
@@ -150,9 +150,13 @@ fun DrivingHelperApp(phonePreview: Boolean = false, parkingEvidence: ParkingEvid
     val colors = if (settings.highContrast) accessibleColors(dark)
         else if (dark) darkColorScheme() else lightColorScheme()
     BackHandler(enabled = screen != "home") {
-        if (screen == "warning_catalog" && warningBackToReview) {
-            screen = "review"; warningFocus = null; warningBackToReview = false
-        } else { screen = "home"; warningFocus = null; warningBackToReview = false }
+        screen = when {
+            screen == "warning_catalog" && warningBackToReview -> "review"
+            screen == "warning_catalog" && warningBackToConcern -> "route"
+            screen == "concern_defog" || screen == "concern_wiper" -> "route"
+            else -> "home"
+        }
+        warningFocus = null; warningBackToReview = false; warningBackToConcern = false
     }
     MaterialTheme(typography = appTypography, colorScheme = colors) {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -182,7 +186,7 @@ fun DrivingHelperApp(phonePreview: Boolean = false, parkingEvidence: ParkingEvid
                     if (!phonePreview) DiagnosticEntry { screen = "diagnostics" }
                     TodayReviewSection(overview, settings.profile, onOpen = { item ->
                         if (item.kind == "wiper") screen = "learn"
-                        else { warningFocus = item.id; warningBackToReview = false; screen = "warning_catalog" }
+                        else { warningFocus = item.id; warningBackToReview = false; warningBackToConcern = false; screen = "warning_catalog" }
                     })
                     if (proposalMessage.isNotEmpty()) Text(proposalMessage)
                     val proposalEvidence = overview?.takeIf { hasRepeatedExplicitStops(it.events) }
@@ -233,6 +237,15 @@ fun DrivingHelperApp(phonePreview: Boolean = false, parkingEvidence: ParkingEvid
                 "door" -> DoorStatusScreen(onBack = { screen = "home" })
                 "route" -> {
                     ScreenTitle("경로 준비", "선호를 저장하고 기본 내비게이션에서 목적지를 검색해요.")
+                    ConcernPreparation(ConcernUiState(settings.profile == UserProfile.SENIOR)) { selected ->
+                        when (selected.concern.destination) {
+                            ConcernDestination.DEFOG -> screen = "concern_defog"
+                            ConcernDestination.WIPER -> screen = "concern_wiper"
+                            ConcernDestination.WARNING_CATALOG -> {
+                                warningFocus = null; warningBackToReview = false; warningBackToConcern = true; screen = "warning_catalog"
+                            }
+                        }
+                    }
                     Text("큰길 선호 · ${if (settings.preferWideRoads) "켜짐" else "꺼짐"}")
                     androidx.compose.material3.Switch(checked = settings.preferWideRoads, enabled = settingsStatus.writable, onCheckedChange = {
                         updateSettings(settings.copy(preferWideRoads = it))
@@ -256,59 +269,39 @@ fun DrivingHelperApp(phonePreview: Boolean = false, parkingEvidence: ParkingEvid
                     BackButton { screen = "home" }
                 }
                 "learn" -> PracticeScreen(detailed = settings.detailedGuidance, onBack = { screen = "home" })
+                "concern_wiper" -> PracticeScreen(detailed = settings.detailedGuidance, backLabelResource = R.string.concern_return_route, onBack = { screen = "route" })
+                "concern_defog" -> {
+                    Text(androidx.compose.ui.res.stringResource(R.string.lesson_defog), style = MaterialTheme.typography.headlineMedium)
+                    ExtraLessonGuide(ExtraLesson.DEFOG, initiallyExpanded = true)
+                    OutlinedButton(onClick = { screen = "route" }, modifier = Modifier.sizeIn(minHeight = com.example.hyundiaboysranger.ui.theme.DesignTokens.touchMinimum)) { Text(androidx.compose.ui.res.stringResource(R.string.concern_return_route)) }
+                }
                 "warnings" -> VehicleHealthScreen(onBack = { screen = "home" })
                 "warning_catalog" -> WarningCatalogScreen(onBack = {
-                    screen = if (warningBackToReview) "review" else "home"
-                    warningFocus = null; warningBackToReview = false
-                }, focusId = warningFocus)
+                    screen = when { warningBackToReview -> "review"; warningBackToConcern -> "route"; else -> "home" }
+                    warningFocus = null; warningBackToReview = false; warningBackToConcern = false
+                }, focusId = warningFocus, backLabelResource = when { warningBackToReview -> R.string.concern_return_review; warningBackToConcern -> R.string.concern_return_route; else -> R.string.warning_catalog_back })
                 "diagnostics" -> DiagnosticScreen(settings.preferHighways) { screen = "home" }
                 "review" -> ReviewScreen(onPractice = { screen = "learn" }, onWarning = { id ->
-                    warningFocus = id; warningBackToReview = true; screen = "warning_catalog"
+                    warningFocus = id; warningBackToReview = true; warningBackToConcern = false; screen = "warning_catalog"
                 }, onBack = { screen = "home" })
                 "settings" -> {
-                    ScreenTitle("설정", "글자·색상·안내 방식을 바꾸면 즉시 적용돼요.")
+                    ScreenTitle(androidx.compose.ui.res.stringResource(R.string.home_settings), androidx.compose.ui.res.stringResource(R.string.settings_screen_description))
                     if (!settingsStatus.writable) {
                         SettingsRecoverySection(settingsRepository, settingsStatus) {
                             settingsStatus = settingsRepository.status()
                             if (settingsStatus.writable) settings = settingsRepository.load()
                         }
                     } else {
-                    Text("글자 크기 · ${settings.effectiveTextSizePercent}%")
-                    Text("직접 고른 크기는 고령자·초보자를 바꿔도 유지돼요.")
-                    var sliderValue by remember(settings.effectiveTextSizePercent) {
-                        mutableFloatStateOf(settings.effectiveTextSizePercent.toFloat())
-                    }
-                    Text("조절할 크기 · ${sliderValue.roundToInt()}% (100~200%)")
-                    Slider(value = sliderValue, onValueChange = { sliderValue = it },
-                        onValueChangeFinished = { updateSettings(settings.withTextSize(sliderValue.roundToInt())) },
-                        valueRange = 100f..200f,
-                        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "글자 크기 조절" })
-                    Text("손잡이를 끌고 놓으면 적용돼요.")
+                    SettingsTextSizeControl(settings.effectiveTextSizePercent) { updateSettings(settings.withTextSize(it)) }
                     val voice = LocalVoiceTextSize.current
-                    if (voice.available) OutlinedButton(onClick = voice.launch) { Text("음성으로 크기 바꾸기") }
+                    if (voice.available) OutlinedButton(onClick = voice.launch) { Text(androidx.compose.ui.res.stringResource(R.string.settings_text_voice)) }
                     Text(voice.message)
                     OutlinedButton(onClick = { updateSettings(settings.copy(textSizePercent = null)) }) {
-                        Text("사용자 유형 기본 크기로")
+                        Text(androidx.compose.ui.res.stringResource(R.string.settings_text_reset))
                     }
-                    Text("높은 대비 · ${if (settings.highContrast) "켜짐" else "꺼짐"}")
-                    Switch(modifier = Modifier.semantics { contentDescription = "높은 대비" }, checked = settings.highContrast, onCheckedChange = {
-                        updateSettings(settings.copy(profile = UserProfile.CUSTOM, highContrast = it))
-                    })
-                    Text("화면 모드 · ${settings.displayMode.label}")
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        DisplayMode.entries.forEach { mode ->
-                            OutlinedButton(onClick = { updateSettings(settings.copy(profile = UserProfile.CUSTOM, displayMode = mode)) }) {
-                                Text(mode.label + if (settings.displayMode == mode) " · 선택됨" else "")
-                            }
-                        }
-                    }
-                    Text("안내 상세도 · ${if (settings.detailedGuidance) "상세" else "간단"}")
-                    Switch(modifier = Modifier.semantics { contentDescription = "상세 안내" }, checked = settings.detailedGuidance, onCheckedChange = {
-                        updateSettings(settings.copy(profile = UserProfile.CUSTOM, detailedGuidance = it))
-                    })
-                    Text("간단한 안내는 홈 메뉴와 연습 설명을 줄여요. 안전 안내와 연결 상태는 계속 표시해요.")
-                    InfoCard("화면 예시", "설정은 지금 보는 제목·본문·버튼에도 적용돼요.")
-                    Text("글자 크기는 사용자 유형과 별도로 저장돼요. 대비·화면 모드·상세도를 바꾸면 직접 설정으로 바뀌어요.")
+                    SettingsAppearanceControls(settings) { updateSettings(reduceAppearance(settings, it)) }
+                    InfoCard(androidx.compose.ui.res.stringResource(R.string.appearance_preview_title), androidx.compose.ui.res.stringResource(R.string.appearance_preview_body))
+                    Text(androidx.compose.ui.res.stringResource(R.string.appearance_profile_note))
                     SettingsManagement { updateSettings(UserSettings(), "설정 초기화") }
                     }
                     BackButton { screen = "home" }

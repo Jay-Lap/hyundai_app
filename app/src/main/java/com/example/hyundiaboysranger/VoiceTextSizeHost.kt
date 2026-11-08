@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -20,13 +21,14 @@ val LocalVoiceTextSize = staticCompositionLocalOf {
 @Composable
 fun VoiceTextSizeHost(content: @Composable () -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
-    var message by rememberSaveableMessage()
+    var message by rememberSaveableMessage(resources.getString(R.string.voice_initial))
     val intent = remember {
         Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "글자 크기 150퍼센트라고 말해 주세요")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, resources.getString(R.string.voice_prompt))
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
     }
@@ -35,29 +37,29 @@ fun VoiceTextSizeHost(content: @Composable () -> Unit) {
         val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
         val percent = spoken?.let(::parseTextSizeVoice)
         when {
-            result.resultCode != Activity.RESULT_OK -> message = "음성 입력을 취소했거나 인식하지 못했어요."
-            percent == null -> message = "100부터 200퍼센트 사이의 크기를 하나만 말해 주세요."
+            result.resultCode != Activity.RESULT_OK -> message = resources.getString(R.string.voice_cancelled)
+            percent == null -> message = resources.getString(R.string.voice_invalid)
             else -> {
-                message = "글자 크기를 저장하고 있어요."
+                message = resources.getString(R.string.voice_saving)
                 scope.launch {
                     val success = withContext(Dispatchers.IO) {
                         val repository = SettingsRepository(context)
                         repository.loadIfReadable()?.let { repository.save(it.withTextSize(percent)) } == true
                     }
-                    message = if (success) "글자 크기를 ${percent}%로 저장했어요."
-                    else "글자 크기 저장 결과를 확인할 수 없어요. 설정 화면에서 상태를 확인해 주세요."
+                    message = if (success) resources.getString(R.string.voice_saved, percent)
+                    else resources.getString(R.string.voice_write_unknown)
                 }
             }
         }
     }
     CompositionLocalProvider(LocalVoiceTextSize provides VoiceTextSizeControl(available,
-        if (available) message else "이 기기에는 음성 인식 서비스가 없어요. 슬라이더를 이용해 주세요.") {
+        if (available) message else resources.getString(R.string.voice_unavailable)) {
         try { launcher.launch(intent) }
-        catch (_: Exception) { message = "음성 인식을 실행할 수 없어요. 슬라이더를 이용해 주세요." }
+        catch (_: Exception) { message = resources.getString(R.string.voice_launch_failed) }
     }) { content() }
 }
 
 @Composable
-private fun rememberSaveableMessage() = androidx.compose.runtime.saveable.rememberSaveable {
-    mutableStateOf("음성 버튼을 누르고 ‘글자 크기 150퍼센트’라고 말해 보세요.")
+private fun rememberSaveableMessage(initial: String) = androidx.compose.runtime.saveable.rememberSaveable {
+    mutableStateOf(initial)
 }

@@ -23,6 +23,23 @@ import java.util.Date
 import com.example.hyundiaboysranger.ui.theme.DesignTokens
 
 @Composable
+internal fun DoorSnapshotSection(last: DoorChecklistSnapshot, fresh: Boolean, sdkChecked: Boolean) {
+    Text(stringResource(R.string.checklist_last_read, DateFormat.getTimeInstance().format(Date(last.displayedTime))))
+    ChecklistDoor.entries.forEach { door ->
+        val result = last.results[door] ?: SignalResult.NoSignal
+        val label = when (result) {
+            is SignalResult.Value -> stringResource(when (result.value) { DoorPosition.CLOSED -> R.string.checklist_closed; DoorPosition.OPEN -> R.string.checklist_open; DoorPosition.UNKNOWN -> R.string.checklist_unknown })
+            else -> signalStatus(result)
+        }
+        val name = stringResource(when (door) { ChecklistDoor.FRONT_LEFT -> R.string.door_front_left; ChecklistDoor.FRONT_RIGHT -> R.string.door_front_right; ChecklistDoor.REAR_LEFT -> R.string.door_rear_left; ChecklistDoor.REAR_RIGHT -> R.string.door_rear_right })
+        Text(stringResource(R.string.checklist_door_result, name, label))
+    }
+    if (!fresh) Text(stringResource(R.string.checklist_stale))
+    else if (!sdkChecked && allChecklistDoorsClosed(last.results)) Text(stringResource(R.string.checklist_sdk_cleared))
+    else if (!sdkChecked) Text(stringResource(R.string.checklist_not_verified))
+}
+
+@Composable
 fun DepartureChecklist(checked: Set<Int>, onChange: (Set<Int>) -> Unit, onBack: () -> Unit,
     onReview: () -> Unit, onRoute: () -> Unit, parkingEvidence: ParkingEvidence? = null,
     readerFactory: (Context) -> ChecklistDoorReader = { VehicleHealthReader(it) },
@@ -102,24 +119,11 @@ fun DepartureChecklist(checked: Set<Int>, onChange: (Set<Int>) -> Unit, onBack: 
     }, enabled = vehicleQueriesAllowed && gateAllowed && !doorState.loading, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(if (doorState.loading) R.string.checklist_querying else R.string.checklist_query)) }
     if (!vehicleQueriesAllowed) Text(stringResource(R.string.vehicle_safety_blocked))
     if (!gateAllowed) Text(stringResource(R.string.checklist_parking_required))
-    snapshot?.let { last ->
-        Text("마지막 조회 완료 ${DateFormat.getTimeInstance().format(Date(last.displayedTime))} · 마지막 조회값이며 현재와 다를 수 있어요. 문마다 조회 시각이 다를 수 있어요.")
-        ChecklistDoor.entries.forEach { door ->
-            val result = last.results[door] ?: SignalResult.NoSignal
-            val label = when (result) {
-                is SignalResult.Value -> when (result.value) { DoorPosition.CLOSED -> "닫힘"; DoorPosition.OPEN -> "열림"; DoorPosition.UNKNOWN -> "확인 안 됨" }
-                else -> signalStatus(result)
-            }
-            Text("${door.label}: $label")
-        }
-        if (!fresh) Text("조회값이 오래되어 SDK 확인을 해제했어요. 다시 조회하거나 직접 확인해 주세요.")
-        else if (!sdkChecked && allChecklistDoorsClosed(last.results)) Text("SDK 자동 확인이 해제됐어요. 직접 확인하거나 다시 조회해 주세요.")
-        else if (!sdkChecked) Text("네 문이 모두 닫혔다고 SDK로 확인하지 못했어요. 직접 확인하거나 다시 조회해 주세요.")
-    }
+    snapshot?.let { DoorSnapshotSection(it, fresh, sdkChecked) }
     if (visibleChecks.size == departureChecks.size) Text(stringResource(R.string.checklist_done))
     Text(stringResource(R.string.checklist_reset_notice))
-    OutlinedButton(onClick = { controller.clear(clearSnapshot = true); doorState = controller.state; request?.cancel(); onChange(emptySet()) }) { Text(stringResource(R.string.checklist_reset)) }
-    OutlinedButton(onClick = onReview) { Text(stringResource(R.string.checklist_review)) }
-    OutlinedButton(onClick = onRoute) { Text(stringResource(R.string.checklist_route)) }
-    OutlinedButton(onClick = onBack) { Text(stringResource(R.string.checklist_home)) }
+    OutlinedButton(onClick = { controller.clear(clearSnapshot = true); doorState = controller.state; request?.cancel(); onChange(emptySet()) }, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.checklist_reset)) }
+    OutlinedButton(onClick = onReview, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.checklist_review)) }
+    OutlinedButton(onClick = onRoute, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.checklist_route)) }
+    OutlinedButton(onClick = onBack, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.checklist_home)) }
 }

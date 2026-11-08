@@ -1,5 +1,60 @@
 # 기능 및 출시 준비 상태 — Phase 0 진행 중
 
+## 2026-11-08 사용자 로컬 터미널 검증 결과
+
+- 아래는 **사용자가 로컬 터미널에서 직접 실행해 제공한 결과**이며 에이전트가 재실행하거나 독립 확인한 결과가 아니다: `.\gradlew.bat testDebugUnitTest assembleDebug assembleDemo assembleRelease lintDebug --offline --console=plain` → `BUILD SUCCESSFUL` (1분 13초). 단위 테스트 97개 실행, 실패 0·오류 0·스킵 0; debug/demo/release 빌드 성공.
+- 사용자 보고 lint: 오류 0·경고 10. `GradleDependency` 6(core-ktx, test junit, espresso, lifecycle-runtime-ktx, activity-compose, compose-bom), `AndroidGradlePluginVersion` 1(9.5.0→9.5.1), `NewerVersionAvailable` 1(Kotlin Compose 플러그인), `ObsoleteLintCustomCheck` 1(lifecycle lint 검사 2개 생략), `PrivateApi` 1(`ParkingMonitor.kt` 리플렉션). 이전 에이전트 보고 7건 대비 추가된 3건은 compose-bom·AGP·Kotlin Compose 플러그인의 버전 알림이며 증가 원인은 미확인이다. SDK 호환성이 검증되지 않아 의존성 업그레이드는 하지 않았다.
+- 남은 컴파일러 경고: `AndroidCarParkingMonitor.kt` 45·46행 deprecated API, `ReviewRepository.kt` 11행 data class `copy` 가시성. 남은 백로그: `ParkingMonitor.kt`의 `PrivateApi` 리플렉션 의존성 점검, lifecycle lint 검사 복구를 위한 라이브러리 업그레이드 검토(시연 이후).
+- 사용자 보고 실행에는 `assembleDebugAndroidTest`가 포함되지 않았다. 계측 APK는 이번에 빌드하지 않았고 기기·에뮬레이터 검증도 미실행이다. 아래의 에이전트 접근 거부 진단은 원인 미확인으로 유지한다.
+
+## 2026-11-08 미커밋 백업 및 Gradle 진단
+
+- 프로젝트 밖에 기존 추적 변경의 binary 패치, 미추적 파일 10개와 `run-app.cmd` 사본을 백업하고 복사본 11개의 SHA-256 일치를 확인했다. `.idea/`, APK와 빌드·캐시는 제외했다. 이 기록은 백업 후 추가되어 해당 패치에 포함되지 않는다.
+- Gradle wrapper는 9.6.0이고 실행한 배포본도 9.6.0이다. 실행 JBR은 Java 25.0.4이며 daemon 설정은 Java 25다. 앱의 Java 11은 컴파일 대상이다.
+- 기존 격리 홈과 init 스크립트, 오프라인 옵션을 사용한 검증 명령은 구성 단계에서 실패했다. stacktrace의 직접 예외는 Gradle 배포본 `gradle-core-api-9.6.0.jar`에 대한 `AccessDeniedException`이다. 권한 거부의 구체적 원인과 해결책은 미확인이다.
+- 동일 환경의 init 없는 `help --offline --no-daemon --console=plain`, 그리고 오프라인만 제외한 `help --no-daemon --console=plain`은 각각 종료 코드 1로 같은 생성 클래스 컴파일 오류가 났다. 단위 테스트, 세 빌드, lint는 구성 실패로 이번에 실행하지 못했다. 기존 보고의 97개 테스트 결과는 이번 재검증 결과가 아니다.
+- ADB·에뮬레이터·실차는 접근하지 않아 미실행이다. 권한이나 사용자 데이터, 설치 APK를 변경하지 않았으며 스테이징·커밋·push도 하지 않았다.
+
+## 2026-11-08 걱정 상황 연결 정리·기기 검증
+
+- 커밋: 기준 `95cc2a1`, 스테이징 영역은 비어 있다. 직전 기능의 `PreparationConcern.kt`, `PreparationConcernTest.kt`, `PreparationConcernUiTest.kt`는 별도 파일이지만 화면 연결이 포함된 `MainActivity.kt`, `PracticeScreens.kt`, `WarningCatalogScreen.kt`, `strings.xml`, `FEATURE_STATUS.md`에는 이전 설정·복습·리소스 작업도 함께 있다. `SCREEN_SPEC.md`, `DESIGN_HANDOFF.md`도 기존 작업과 함께 미커밋이다. 사용자의 다른 변경 혼합 시 스테이징하지 말라는 지시에 따라 어떤 파일도 스테이징하거나 커밋하지 않았다. `run-app.cmd`, `.idea/`도 그대로 보존하고 push하지 않았다.
+- lint: 기준 커밋 생성 직전 `build/settings-review-ui-isolated/app/reports/lint-results-debug.txt`와 직전 작업 후 `build/preparation-flow-isolated/app/reports/lint-results-debug.txt`를 비교했다. 둘 다 오류 0·경고 7이며 항목은 라이브러리 `ObsoleteLintCustomCheck` 1, `ParkingMonitor.kt`의 `PrivateApi` 1, `gradle/libs.versions.toml`의 `GradleDependency` 5로 동일하다. 신규 경고는 발견되지 않았다. 기준 보고서는 커밋 생성 직전 기록이며 이번에 별도 기준 체크아웃을 빌드한 결과는 아니다. 라이브러리 일부 lint 검사는 건너뛰어졌다.
+- 코드 구현: 세 주제 연결과 복귀 경로, 수동 선택이며 실경로·차량 상태 분석이 아니고 복습 기록에 저장하지 않는다는 문구가 코드에 있다. 실제 화면이 표시됐다는 근거는 아니다.
+- 빌드 확인: 직전 `build/preparation-flow-isolated`에서 단위 테스트 97개, debug·demo·release 및 계측 APK 빌드, lint가 성공했다. 이번에는 기존 보고서를 읽었고 재빌드하지 않았다. 별도 APK 빌드는 설치 성공이나 에뮬레이터 동작을 의미하지 않는다.
+- Pleos 에뮬레이터 확인: 미실행. 이전 ADB 접근 거부가 해결됐다는 새 근거가 없어 재접근하지 않았다. 세 주제 선택/복귀, 문구, 기록 미생성·자동 감지 부재, 글자 200%·좁은 화면·계측 실행, 세 사용자 유형, 설정/복습/백업/FeatureGate 회귀는 모두 미실행이다.
+- 복구: 기기에 접근하거나 테스트를 시작하지 않아 시작 전 설정·복습·차량 상태를 읽거나 내부 백업을 만들지 않았고, 설치·설정·차량 상태 변경이나 복원도 실행하지 않았다. 시작 전과 종료 후 기기 상태가 동일하다는 독립 검증도 미실행이다. 설치된 앱이 최신 빌드인지 미확인이고 이전 APK에는 Vehicle SDK 차단이 없을 수 있다.
+- 다음 판단: 다른 미커밋 화면 작업을 먼저 별도 커밋으로 정리하거나, 혼합 파일의 부분 스테이징을 허용할지 사용자가 결정해야 한다. 실제 기기 테스트는 ADB 접근 거부 해결 근거와 기존 내부 백업 보존 방법을 확인한 후에만 진행한다.
+
+## 2026-11-08 출발 전 걱정 상황 학습 연결
+
+- 구현: 경로 준비 화면에 `PreparationConcern.kt`의 수동 학습 주제 세 가지(앞유리 김서림·와이퍼 조작·경고등 의미)를 추가했다. 사용자가 선택하면 각각 김서림 설명·기존 와이퍼 화면·경고등 사전으로 이동하며 경로 준비로 돌아올 수 있다. 선택은 복습 기록으로 저장하지 않고 실제 경로 분석이나 차량 신호가 아니라는 안내를 표시한다. 경고등은 실제로 감지된 것처럼 특정 항목을 자동 선택하지 않는다. 고령자에게는 짧은 안내와 기존 큰 터치 토큰을 사용한다.
+- 안전·데이터: Vehicle SDK 기본 차단, 주차 FeatureGate, 와이퍼 OFF→ON→OFF 로직, 복습 동의·기존 기록 보호를 유지한다. 김서림 완료 판정은 잠겨 있고 선택만으로 기록·차량 제어 명령을 만들지 않는다. 이는 실제 경로 후보·도로 폭 분석이나 차량 상태를 제공하는 기능이 아니다.
+- 검증: `PreparationConcernTest.kt`에서 주제별 목적지와 Vehicle 차단·설명 완료 잠금을 확인했다. `PreparationConcernUiTest.kt`는 저장소·SDK 없이 280×220dp와 글자 200%에서 안내와 선택을 검증하도록 작성했으나 기기에서 실행하지 않았다. `build/preparation-flow-isolated`에서 단위 테스트 97개, debug·demo·release·계측 APK 빌드 및 lint 성공(오류 0·경고 7; 일부 라이브러리 lint 검사 생략). Vehicle SDK 차단 정적 검사 통과(반사·의존성 내부·실행 동작은 검사 범위 밖). 기존 APK 58개 해시는 전후 일치했다.
+- 미실행·한계: 기기·에뮬레이터·실차, 화면 흐름·200%·스크린리더 및 실제 SDK IPC는 미실행이다. 기존 설치 APK와 사용자 데이터는 변경하지 않았으며, 기존 설치 앱이 이 빌드인지도 확인하지 못했다. SDK 안전 해제 계약 및 실경로 속성은 미확인이다. 걱정 선택과 기존 수동 점검·복습 사이의 전체 화면 흐름은 기기 회귀가 필요하고 수동 열람/직접 확인 기록 기능은 아직 구현하지 않았다. 원격 push·공급자 문의 발송은 하지 않았다.
+
+## 2026-11-08 오프라인 화면 일괄 후속
+
+- 구현: 설정 제목, 오늘 복습 항목, 경고 사전 추가·동의/결과, 내비 화면의 옵션·연결/조회·확인창, 출발 전 문 조회 결과 문구를 문자열 리소스로 옮겼다. `TodayReviewItemState`, `WarningConsentEvent`, `NavigationConnectionState`/이벤트와 `DoorSnapshotSection`으로 표시 UI를 분리했다. 내비 연결·즐겨찾기·옵션과 점검 버튼에 터치 토큰을 적용하고 즐겨찾기 접근성 이름에 항목 이름과 주소를 포함했다. SDK 신호·경로 요청 및 설정/복습 데이터 처리는 변경하지 않았다.
+- 접근성·테스트: `OfflineComponentsAccessibilityTest.kt`에 SDK나 사용자 저장소 없이 280×220dp·글자 200%에서 내비 연결 버튼 스크롤/선택과 경고 사전 동의/취소 이벤트를 확인하는 계측 테스트를 추가했다. 기존 오늘 복습·점검·동의 및 데이터 보호 테스트도 유지했다. 계측 APK는 컴파일만 했으며 줄바꿈·화면 잘림·스크린리더와 실제 입력은 기기에서 미실행이다.
+- 빌드: `build/ui-batch-isolated`에서 전체 단위 테스트 96개와 debug·demo·release 및 계측 APK 빌드, lint 성공(오류 0·경고 7; 일부 라이브러리 lint 검사 생략). Vehicle SDK 차단 정적 검사 통과(반사·의존성 내부·실행 동작 제외). 기존 로컬 APK 55개 해시 전후 일치. 사용자 데이터·설치 APK·`run-app.cmd`·`.idea/`는 변경하지 않았다.
+- 한계: `NavigationSession`과 `NavigationObservation`의 연결·요청 결과 안내, 차량 상태·주차 화면 및 일부 복습/경고 상세 메시지, 음성 CompositionLocal 기본값에는 하드코딩이 남는다. 모든 화면의 상태/이벤트 분리와 실제 200%·다양한 비율·스크린리더 검증은 미완료다. ADB 접근 거부 해결 근거가 없어 기기·에뮬레이터·실차 및 실제 SDK IPC는 미실행. Vehicle SDK 기본 꺼짐과 주차 FeatureGate를 유지하며 이전 설치 APK에는 차단이 없을 수 있다. 공급자 문의를 발송하거나 원격 push하지 않았다.
+- Git: 기준 `95cc2a1`; 이전 및 이번 변경은 미커밋·미스테이징이며 기존 `run-app.cmd` 수정과 `.idea/`도 그대로 남는다.
+
+## 2026-11-08 설정 표시·복습 삭제 화면 후속
+
+- 구현: `SettingsAppearanceControls.kt`에서 대비·화면 모드·안내 상세도의 표시와 변경 이벤트를 분리하고 문구·접근성 이름·터치 크기를 자원과 토큰으로 옮겼다. `PracticeScreens.kt`에서는 복습 삭제 확인 UI의 확인/취소 이벤트를 분리하고 이력·저장 상태·삭제 범위·실패 안내 및 와이퍼 복습 기록 실패 문구를 리소스로 옮겼다. 기존 저장·동의·마이그레이션·손상/미래 버전·기록 결과 불명 처리와 삭제 확인 조건은 유지하며 저장 형식은 바꾸지 않았다.
+- 검증: `SettingsAppearanceTest.kt`로 설정 변경 시 글자 크기·경로 선호 등 다른 필드가 보존되는지 확인했다. `AppearanceReviewDialogUiTest.kt`에는 280×220dp·글자 200%의 대비/모드 조작 및 삭제 확인/취소의 표시 전용 Fake 테스트를 추가해 컴파일했다. `build/appearance-followup-isolated`에서 단위 테스트 96개와 debug·demo·release·계측 APK 빌드 및 lint 통과(오류 0·경고 7; 라이브러리 일부 검사 생략). 계측 테스트는 기기에서 미실행이다.
+- 안전·보존: Vehicle SDK 차단 정적 검사 통과(반사·의존성 내부·실행 동작은 범위 밖). Android Car 주차 FeatureGate는 변경하지 않았다. 기존 APK 51개의 해시 전후 일치. 사용자 설정·복습·백업·설치 APK·`run-app.cmd`·`.idea/`는 건드리지 않았다. ADB 접근 거부 해결 근거가 없어 재접근하지 않았으며 실제 화면·200%·스크린리더·에뮬레이터·실차 및 SDK IPC는 미실행이다. 이미 설치된 이전 APK에는 안전 차단이 없을 수 있다.
+- 남은 일: 설정 제목·음성 기본 CompositionLocal, 오늘 복습, 경고 사전 추가/동의, 내비·점검·차량 상태 등에는 하드코딩과 상태/이벤트 분리 작업이 남는다. 전체 화면의 동적 글자 줄바꿈·스크린리더 검증과 SDK release 계약은 미완료다. 기준 커밋은 `95cc2a1`이며 체크포인트 이후 기존 변경과 이번 변경은 미커밋·미스테이징 상태로 보존한다. 원격 push와 공급자 문의 발송은 하지 않았다.
+
+## 2026-11-08 로컬 체크포인트 및 화면 후속
+
+- 체크포인트: 기존 스테이징 영역이 비어 있음을 확인한 뒤 앱 코드·테스트·문서와 필요한 빌드 설정·정적 검사 도구를 로컬 커밋 `95cc2a1343f31b7c28a78d9bc32e659fe42565da`로 기록했다. 기존 `run-app.cmd` 수정과 `.idea/`는 커밋에서 제외하고 그대로 보존했다. APK·키 파일 등의 경로와 일반적인 비밀값 패턴을 검사해 후보에서 발견하지 못했다. 이는 모든 유형의 비밀이나 이전 Git 이력 전체에 대한 보증은 아니다. 원격 push·공급자 문의 발송은 하지 않았다.
+- 체크포인트 이후 미커밋 구현: 설정 글자 크기 슬라이더의 임시 상태·저장 완료 이벤트를 `SettingsTextSizeControl.kt`로 분리했다. 음성 안내, 내부 백업의 기록 결과·교체/복원 확인, 설정·복습 기록 결과 불명과 재시도 안내, 복습 이력 표시를 문자열 자원으로 옮겼다. 복습 이력은 기존처럼 모호한 종료 여부를 진행 중으로 표시한다. 설정·백업·동의·마이그레이션·손상/미래 버전·기록 결과 불명 보호, 사용자 확인 흐름은 기존 저장소 경로를 유지한다.
+- 검증: 분리된 `build/checkpoint-followup-isolated`에서 단위 테스트 95개, debug·demo·release와 계측 APK 빌드, lint 통과. 첫 lint에서는 Compose 리소스 접근 오류 13개가 발생해 수정했고 재실행은 오류 0·경고 7이다. 일부 라이브러리 lint 검사는 건너뛰어졌다. 글자 200%·280×220dp의 슬라이더 접근성/조절 계측 테스트는 작성·컴파일만 했다. Vehicle 차단 정적 검사는 세 빌드에서 통과했으며 실행 전체를 증명하지는 않는다.
+- 보존·미실행: 기존 APK 47개 해시 전후 일치. 사용자 데이터·설치 APK·`run-app.cmd`·`.idea/`는 변경하지 않았고 기존 로컬 변경은 유지했다. ADB 접근 거부 해결 근거가 없어 재접근하지 않았으며 실제 화면·200%·스크린리더·계측·실차 테스트는 미실행이다. 기존 설치 APK에는 Vehicle 안전 차단이 없을 수 있다.
+- 남은 일: 설정 화면의 대비·모드·상세도 문구, 음성 CompositionLocal 기본값, 복습 삭제 확인·오류와 일부 백업 상태 및 화면별 상태/이벤트 분리는 아직 하드코딩으로 남는다. SDK 조기 release 계약은 미해결이며 안전 차단과 주차 FeatureGate를 유지한다. 이 섹션과 체크포인트 이후 UI 변경은 위 커밋에 포함되지 않은 작업 트리 변경이다.
+
 ## 2026-11-08 설정·복습·조작 설명 화면 후속
 
 - 구현 파일: `SettingsManagementScreen.kt`에서 파일 설정 이동·복원·초기화 문구를 `strings.xml`로 옮기고 초기화 확인 상태·이벤트와 UI를 분리했다. `PracticeScreens.kt`에서 저장된 경고등 항목의 표시 상태·열기/삭제 이벤트를 분리하고, 복습 동의 안내·항목 이름 등 주요 문구를 자원화했다. 설정/복습/와이퍼 버튼에 최소 터치 토큰을 적용하고 공조·김서림 완료 잠금의 접근성 이름에 레슨 이름을 포함했다. 기존 저장·마이그레이션·동의·손상/미래 버전·기록 결과 불명 및 삭제 확인 로직은 유지했다.

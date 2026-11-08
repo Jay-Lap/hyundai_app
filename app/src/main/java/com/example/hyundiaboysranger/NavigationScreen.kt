@@ -6,18 +6,35 @@ import android.os.SystemClock
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.example.hyundiaboysranger.ui.theme.DesignTokens
 import kotlinx.coroutines.delay
 
-fun RouteOption.label(): String = when (this) {
-    RouteOption.RECOMMENDED -> "추천"
-    RouteOption.HIGHWAY -> "고속도로 우선"
-    RouteOption.COMFORTABLE -> "편안한 경로"
-    RouteOption.FREE -> "무료 도로 우선"
-    RouteOption.SHORT_DISTANCE -> "최단 거리"
-    RouteOption.SHORT_TIME -> "최단 시간"
-    RouteOption.SCHOOL_ZONE -> "스쿨존 고려"
+@Composable
+fun RouteOption.label(): String = stringResource(when (this) {
+    RouteOption.RECOMMENDED -> R.string.nav_option_recommended
+    RouteOption.HIGHWAY -> R.string.nav_option_highway
+    RouteOption.COMFORTABLE -> R.string.nav_option_comfortable
+    RouteOption.FREE -> R.string.nav_option_free
+    RouteOption.SHORT_DISTANCE -> R.string.nav_option_distance
+    RouteOption.SHORT_TIME -> R.string.nav_option_time
+    RouteOption.SCHOOL_ZONE -> R.string.nav_option_school
+})
+
+internal data class NavigationConnectionState(val connected: Boolean, val busy: Boolean)
+internal enum class NavigationConnectionEvent { CONNECT, REFRESH }
+
+@Composable
+internal fun NavigationConnectionControls(state: NavigationConnectionState, onEvent: (NavigationConnectionEvent) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(DesignTokens.gapSmall), verticalArrangement = Arrangement.spacedBy(DesignTokens.gapSmall)) {
+        OutlinedButton(onClick = { onEvent(NavigationConnectionEvent.CONNECT) }, enabled = !state.busy, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.nav_connect)) }
+        Button(onClick = { onEvent(NavigationConnectionEvent.REFRESH) }, enabled = state.connected && !state.busy, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.nav_refresh)) }
+    }
 }
 
 @Composable
@@ -30,48 +47,50 @@ fun NavigationScreen(preferHighways: Boolean) {
     var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
     LaunchedEffect(Unit) { while (true) { now = SystemClock.elapsedRealtime(); delay(500) } }
     DisposableEffect(session) { session.connect(); onDispose { session.disconnect() } }
-    Text("기본 내비게이션 연동", style = MaterialTheme.typography.titleLarge)
-    Text("기본 내비게이션 SDK 응답을 표시해요.")
+    Text(stringResource(R.string.nav_title), style = MaterialTheme.typography.titleLarge)
+    Text(stringResource(R.string.nav_description))
     Text(session.status)
     session.optionEvidence?.let { evidence ->
-        Text("옵션 관찰 · 요청 전 ${evidence.before} / 요청 ${evidence.requested} / 콜백 ${evidence.callback ?: "미수신"} / 재조회 ${evidence.after ?: "미확인"}")
-        Text("요청 식별자가 없어 콜백과 재조회가 이 요청의 결과인지는 확정할 수 없어요.")
+        Text(stringResource(R.string.nav_evidence, evidence.before, evidence.requested, evidence.callback ?: stringResource(R.string.nav_not_received), evidence.after ?: stringResource(R.string.nav_not_confirmed)))
+        Text(stringResource(R.string.nav_evidence_uncorrelated))
     }
     NavigationDebugDetails(session)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedButton(onClick = session::connect, enabled = !session.busy) { Text("다시 연결") }
-        Button(onClick = session::refresh, enabled = session.connected && !session.busy) { Text("정보 조회") }
+    NavigationConnectionControls(NavigationConnectionState(session.connected, session.busy)) { event ->
+        when (event) { NavigationConnectionEvent.CONNECT -> session.connect(); NavigationConnectionEvent.REFRESH -> session.refresh() }
     }
     session.destination?.let { info ->
-        Text("마지막 조회 목적지: ${info.name.ifBlank { "이름 없음" }}")
+        val unnamed = stringResource(R.string.nav_unnamed)
+        Text(stringResource(R.string.nav_destination, info.name.ifBlank { unnamed }))
         Text(info.address)
     }
-    session.routeState?.let { state -> Text("조회된 경로 옵션: ${state.routeOption.label()}") }
-    if (session.updatedAt > 0 && now - session.updatedAt > 15_000) Text("조회값이 오래됐어요. 경로를 변경하려면 다시 조회해 주세요.")
-    Text("요청할 경로 옵션")
+    session.routeState?.let { state -> Text(stringResource(R.string.nav_reported_option, state.routeOption.label())) }
+    if (session.updatedAt > 0 && now - session.updatedAt > 15_000) Text(stringResource(R.string.nav_stale))
+    Text(stringResource(R.string.nav_option_title))
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(RouteOption.RECOMMENDED, RouteOption.HIGHWAY, RouteOption.COMFORTABLE, RouteOption.FREE).forEach { candidate ->
-            FilterChip(selected = option == candidate, onClick = { option = candidate }, label = { Text(candidate.label()) })
+            FilterChip(selected = option == candidate, onClick = { option = candidate }, label = { Text(candidate.label()) }, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum))
         }
     }
-    Text("‘편안한 경로’는 내비게이션의 경로 옵션이에요. 도로 폭에 따른 큰길 우선이나 안전을 보장하지 않아요.")
-    Button(onClick = { session.changeOption(option) }, enabled = !session.busy && session.activeRoute(SystemClock.elapsedRealtime())) { Text("현재 경로에 옵션 적용") }
-    Text("내비게이션 즐겨찾기", style = MaterialTheme.typography.titleLarge)
-    OutlinedButton(onClick = session::loadBookmarks, enabled = session.connected && !session.busy) { Text("즐겨찾기 조회") }
-    if (session.bookmarks.isEmpty()) Text("조회된 즐겨찾기가 없어요. 기본 내비게이션에서 등록한 뒤 조회해 주세요.")
+    Text(stringResource(R.string.nav_option_disclaimer))
+    Button(onClick = { session.changeOption(option) }, enabled = !session.busy && session.activeRoute(SystemClock.elapsedRealtime()), modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.nav_apply_option)) }
+    Text(stringResource(R.string.nav_bookmarks_title), style = MaterialTheme.typography.titleLarge)
+    OutlinedButton(onClick = session::loadBookmarks, enabled = session.connected && !session.busy, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.nav_bookmarks_query)) }
+    if (session.bookmarks.isEmpty()) Text(stringResource(R.string.nav_bookmarks_empty))
     session.bookmarks.forEach { bookmark ->
-        OutlinedButton(onClick = { selected = bookmark }, enabled = session.connected && !session.busy) {
+        val bookmarkName = bookmark.name.ifBlank { bookmark.address }
+        val accessibleName = stringResource(R.string.nav_bookmark_accessibility, bookmarkName, bookmark.address)
+        OutlinedButton(onClick = { selected = bookmark }, enabled = session.connected && !session.busy, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum).semantics { contentDescription = accessibleName }) {
             Text(bookmark.name.ifBlank { bookmark.address })
         }
     }
-    OutlinedButton(onClick = { confirmCancel = true }, enabled = !session.busy && session.activeRoute(SystemClock.elapsedRealtime())) { Text("경로 안내 종료") }
+    OutlinedButton(onClick = { confirmCancel = true }, enabled = !session.busy && session.activeRoute(SystemClock.elapsedRealtime()), modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(R.string.nav_stop)) }
     selected?.let { bookmark ->
-        AlertDialog(onDismissRequest = { selected = null }, title = { Text("이 목적지로 경로를 요청할까요?") },
-            text = { Text("${bookmark.name}\n${bookmark.address}\n${option.label()} · 기존 경로가 변경될 수 있어요.") },
-            confirmButton = { TextButton(onClick = { session.requestBookmark(bookmark, option); selected = null }) { Text("요청") } },
-            dismissButton = { TextButton(onClick = { selected = null }) { Text("취소") } })
+        AlertDialog(onDismissRequest = { selected = null }, title = { Text(stringResource(R.string.nav_route_confirm_title)) },
+            text = { Text(stringResource(R.string.nav_route_confirm_details, bookmark.name, bookmark.address, option.label())) },
+            confirmButton = { TextButton(onClick = { session.requestBookmark(bookmark, option); selected = null }) { Text(stringResource(R.string.nav_request)) } },
+            dismissButton = { TextButton(onClick = { selected = null }) { Text(stringResource(R.string.action_cancel)) } })
     }
-    if (confirmCancel) AlertDialog(onDismissRequest = { confirmCancel = false }, title = { Text("현재 경로 안내를 종료할까요?") },
-        confirmButton = { TextButton(onClick = { session.cancelRoute(); confirmCancel = false }) { Text("종료") } },
-        dismissButton = { TextButton(onClick = { confirmCancel = false }) { Text("취소") } })
+    if (confirmCancel) AlertDialog(onDismissRequest = { confirmCancel = false }, title = { Text(stringResource(R.string.nav_stop_confirm)) },
+        confirmButton = { TextButton(onClick = { session.cancelRoute(); confirmCancel = false }) { Text(stringResource(R.string.nav_stop_action)) } },
+        dismissButton = { TextButton(onClick = { confirmCancel = false }) { Text(stringResource(R.string.action_cancel)) } })
 }

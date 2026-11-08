@@ -19,14 +19,14 @@ internal fun ReviewRecoverySection(repository: ReviewRepository, status: ReviewS
     when (status) {
         ReviewStorageStatus.NORMAL -> Unit
         ReviewStorageStatus.WRITE_UNKNOWN -> {
-            val operation = repository.pendingWriteDescription() ?: "복습 작업"
-            Text("${operation}의 저장 결과를 확인하지 못했어요. 이미 저장되었을 수도 있어요. 화면의 값으로 저장 여부를 알 수 없어요.")
-            Text("다시 시도하지 않아도 이전 작업이 취소되거나 원래 기록이 복구되는 것은 아니에요. 앱을 완전히 종료한 후 다시 열면 남아 있는 내용을 확인할 수 있지만, 이전 작업의 성공 여부는 알 수 없고 내용을 읽지 못할 수도 있어요.")
-            OutlinedButton(onClick = { confirmRetry = true }, enabled = !resetting) { Text("같은 복습 작업 다시 시도") }
+            val operation = repository.pendingWriteDescription() ?: stringResource(R.string.review_operation)
+            Text(stringResource(R.string.review_write_unknown, operation))
+            Text(stringResource(R.string.review_write_unknown_restart))
+            OutlinedButton(onClick = { confirmRetry = true }, enabled = !resetting) { Text(stringResource(R.string.review_retry_same)) }
             if (confirmRetry) AlertDialog(
                 onDismissRequest = { confirmRetry = false },
-                title = { Text("같은 작업을 다시 시도할까요?") },
-                text = { Text("다시 시도할 작업: $operation\n삭제나 초기화 작업이라면 기록이 삭제될 수 있어요. 취소해도 이전 시도가 취소되거나 복구되지는 않아요.") },
+                title = { Text(stringResource(R.string.review_retry_title)) },
+                text = { Text(stringResource(R.string.review_retry_details, operation)) },
                 confirmButton = { TextButton(onClick = {
                     confirmRetry = false; resetting = true
                     scope.launch {
@@ -34,8 +34,8 @@ internal fun ReviewRecoverySection(repository: ReviewRepository, status: ReviewS
                         resetting = false
                         onChanged()
                     }
-                }) { Text("다시 시도") } },
-                dismissButton = { TextButton(onClick = { confirmRetry = false }) { Text("취소") } },
+                }) { Text(stringResource(R.string.action_retry)) } },
+                dismissButton = { TextButton(onClick = { confirmRetry = false }) { Text(stringResource(R.string.action_cancel)) } },
             )
         }
         ReviewStorageStatus.FUTURE_VERSION -> Text(stringResource(R.string.review_future_version))

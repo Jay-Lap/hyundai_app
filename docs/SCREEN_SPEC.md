@@ -12,6 +12,7 @@
 | 와이퍼 연습·복습 | OFF→ON→OFF·동의 기록, SDK 조회는 안전 차단 중 | SDK 상태·시작·완료·삭제, 저장된 경고 항목 열기/삭제 이벤트 | PracticeScreens.kt, WiperReader.kt, ReviewRepository.kt |
 | 차량 상태 | 문 상태·두 경고 신호 | 조회·신호 결과·화면 상태/이벤트 | VehicleHealthScreen.kt, VehicleHealthReader.kt, VehicleHealthUiState.kt |
 | 경로 비교 | 실제 후보가 없으면 확인 불가, demo에는 가상 예시 | 선호·공급자 후보·임시 점수 | RouteComparisonScreen.kt, RouteComparison.kt |
+| 걱정 상황 학습 | 사용자가 고른 주제의 설명으로 이동, 실경로 분석 아님 | 선택 이벤트·경로 준비로 돌아가기, 복습 기록 없음 | PreparationConcern.kt, MainActivity.kt |
 | 경고 사전 학습 | 일반 학습 자료, 실시간 감지 아님 | WarningCard 상태·추가 이벤트, 사용자가 선택한 복습 추가 | WarningCatalogScreen.kt, WarningCatalog.kt, res/raw/warning_catalog.tsv |
 
 추가 레슨은 공조·김서림의 일반 설명을 열 수 있지만 신호가 확인되지 않아 완료 판정은 잠금 표시한다. 출발 전 점검에서 복습과 경로 준비로 이동할 수 있다. 차량 상태·추가 레슨·경고 카드에는 일부 상태·이벤트를 분리했으며 전체 이관은 완성되지 않았다.

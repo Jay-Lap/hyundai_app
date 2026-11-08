@@ -52,6 +52,15 @@ internal fun todayItems(overview: ReviewOverview?, profile: UserProfile): List<R
     overview?.items.orEmpty().sortedWith(compareByDescending<ReviewItem> { it.updatedAt }.thenBy { it.kind }.thenBy { it.id })
         .take(if (profile == UserProfile.SENIOR) 1 else 3)
 
+internal data class TodayReviewItemState(val item: ReviewItem, val title: String, val senior: Boolean)
+
+@Composable
+internal fun TodayReviewItem(state: TodayReviewItemState, onOpen: (ReviewItem) -> Unit) {
+    Button(onClick = { onOpen(state.item) }, modifier = Modifier.fillMaxWidth().sizeIn(minHeight = if (state.senior) 88.dp else DesignTokens.touchMinimum)) {
+        Text(state.title, style = if (state.senior) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium)
+    }
+}
+
 @Composable
 internal fun TodayReviewSection(overview: ReviewOverview?, profile: UserProfile, onOpen: (ReviewItem) -> Unit) {
     val resources = LocalResources.current
@@ -63,10 +72,8 @@ internal fun TodayReviewSection(overview: ReviewOverview?, profile: UserProfile,
     if (overview == null) Text(stringResource(R.string.today_review_unavailable))
     else if (selected.isEmpty()) Text(stringResource(R.string.today_review_empty))
     selected.forEach { item ->
-        val title = if (item.kind == "wiper") "와이퍼 연습 · ${if (item.state == "complete") "완료" else "진행 중 또는 미완료"}"
-        else "경고등 학습 · ${catalog.firstOrNull { it.id == item.id }?.title ?: "사전 항목 (${item.id})"}"
-        Button(onClick = { onOpen(item) }, modifier = Modifier.fillMaxWidth().sizeIn(minHeight = if (profile == UserProfile.SENIOR) 88.dp else DesignTokens.touchMinimum)) {
-            Text(title, style = if (profile == UserProfile.SENIOR) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium)
-        }
+        val title = if (item.kind == "wiper") stringResource(R.string.today_wiper, stringResource(if (item.state == "complete") R.string.review_history_complete else R.string.today_wiper_pending))
+        else stringResource(R.string.today_warning, catalog.firstOrNull { it.id == item.id }?.title ?: stringResource(R.string.today_catalog_item, item.id))
+        TodayReviewItem(TodayReviewItemState(item, title, profile == UserProfile.SENIOR), onOpen)
     }
 }
