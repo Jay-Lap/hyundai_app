@@ -25,3 +25,16 @@ data class ParkingEvidence(
         speed.isFinite() && kotlin.math.abs(speed) <= 0.01f && unrestricted == true &&
         observedAt >= 0 && now - observedAt in 0..2500
 }
+
+/** A completed poll is not newer than its start; property timestamps need a separate contract. */
+internal fun parkingEvidenceFromPoll(
+    connectedAfter: Boolean,
+    startedAt: Long,
+    completedAt: Long,
+    park: Boolean?,
+    speed: Float?,
+    unrestricted: Boolean?,
+): ParkingEvidence {
+    if (!connectedAfter || startedAt < 0 || completedAt < startedAt) return ParkingEvidence()
+    return ParkingEvidence(park, speed, unrestricted, startedAt)
+}

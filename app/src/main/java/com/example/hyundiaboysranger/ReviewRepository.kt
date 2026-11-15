@@ -8,6 +8,7 @@ import org.json.JSONObject
 
 data class ReviewRecord(val complete: Boolean, val updatedAt: Long, val source: String)
 enum class ReviewStorageStatus { NORMAL, DAMAGED, FUTURE_VERSION, WRITE_UNKNOWN }
+@ConsistentCopyVisibility
 data class ReviewRecoverySnapshot internal constructor(val values: Map<String, *>)
 
 /** One local user; the old wiper fields and history remain the authoritative legacy record. */

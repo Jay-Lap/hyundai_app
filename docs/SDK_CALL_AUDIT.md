@@ -1,5 +1,30 @@
 # SDK 호출 및 생명주기 점검
 
+## 2026-11-08 사용자 터미널 신선도 Fake 수정 검증
+
+- **사용자 보고:** 별도 출력의 `parking-freshness-syntax-fix-init.gradle` 검증에서 `testDebugUnitTest`, debug/demo/release 빌드와 `lintDebug`가 `BUILD SUCCESSFUL`로 종료됐다. 테스트 수·lint 경고 수는 미확인이다. 에이전트의 직접 실행 결과는 아니다.
+- 기기 실행과 앱 설치는 하지 않았다. Fake 통과는 실제 Pleos 속성 timestamp의 신선도, 조회 직후 연결 유실 감지 또는 실차 안전을 검증하지 않는다. 운영 FeatureGate의 속성별 시간·연결 경합 위험은 그대로 남는다.
+- 독립 소스 대조: 테스트 모델 `allows`는 모든 분류에 false를 반환해 운영 게이트의 허용·차단 동작을 검증하지 않는다. 기존 운영 `FeatureGateTest`의 2.5초 경계 시험은 앱의 폴링 증거 시각만 평가한다. `ParkedApp`의 200ms 재평가 트리거는 기기에서 실제 잠금 지연의 상한을 입증하지 않는다. 상세는 `PARKING_FRESHNESS_VALIDATION.md` 참조.
+
+## 2026-11-08 속성별 시각 Fake 모델 작성
+
+- 테스트 전용 `ParkingFreshnessModelTest.kt`에서 속성별 상태·시각, 폴링 시각, 연결 상태·세대를 분리해 과거·미래·서로 다른 속성 시각과 연결 유실·재연결을 모델링했다. ONCHANGE 기어의 변하지 않은 timestamp는 오래된 값이라는 증거로 취급하지 않으며, 계약이 확인되지 않아 P·정지 역시 확인 안 됨으로 둔다.
+- 이 Fake는 연결 변화를 입력으로 받을 수 있다고 가정한다. 운영 Android Car 어댑터에서 그 감지·세대 관리가 구현되었거나 공개 계약으로 보장된다는 뜻이 아니다. Fake를 FeatureGate에 연결하지 않았고 운영의 속성별 시간·연결 경합 위험은 그대로 남는다. 테스트는 작성했으나 실행·컴파일하지 못했고 기기·실차 검증도 미실행이다.
+
+## 2026-11-08 사용자 터미널 주차 폴링 빌드 결과
+
+- **사용자 보고:** `parking-poll-check-init.gradle`을 사용한 별도 출력의 `testDebugUnitTest`, debug/demo/release 빌드와 `lintDebug`가 `BUILD SUCCESSFUL`로 종료됐다. 에이전트가 직접 실행하거나 독립 확인한 결과는 아니다. 계측 테스트·기기 실행·앱 설치는 해당 명령에 포함되지 않았다.
+- 이는 아래 폴링 시작 시각·완료 시 연결 확인 코드의 사용자 터미널 빌드·단위 테스트 결과다. 실제 차량 속성 timestamp 신선도, 서로 다른 속성 시각, 조회 직후 연결 유실과 실차 안전은 미검증이며 FeatureGate가 이러한 불확실성을 모두 차단한다고 보장하지 않는다. 후속 검증 계획은 `PARKING_FRESHNESS_VALIDATION.md`를 참조한다.
+
+## 2026-11-08 Android Car 주차 증거 시간 조사
+
+- 현행 출처: `CarPropertyManager`의 전역 영역 0에서 `GEAR_SELECTION`과 `PERF_VEHICLE_SPEED`를 순차 동기 조회하고 `CarUxRestrictionsManager`의 현재 제한을 읽는다. `STATUS_AVAILABLE`이 아닌 기어·속도는 각각 미상, 예외는 전체 미상으로 처리한다. 기존에는 각 `CarPropertyValue.timestamp`를 읽지 않았고 읽기 완료 시각을 `observedAt`으로 사용했다. 연결은 조회 전에 `isConnected`를 확인했으나 조회 도중 유실은 별도 확인하지 않았다.
+- [Android 차량 속성 문서](https://developer.android.com/reference/android/car/VehiclePropertyIds)의 `GEAR_SELECTION`은 ONCHANGE, `PERF_VEHICLE_SPEED`는 CONTINUOUS다. [CarPropertyValue 문서](https://developer.android.com/reference/android/car/hardware/CarPropertyValue)의 속성 timestamp는 발생 시각(ns), `elapsedRealtimeNanos()`와 같은 시계이고 새 값마다 단조 증가해야 한다. 값이 변하지 않는 동안 기어 timestamp가 갱신된다는 보장은 확인하지 못했다. 따라서 오래된 timestamp만으로 오래된 기어 상태라고 단정하거나 반대로 폴링만으로 신선하다고 가정할 수 없다.
+- [Car 서비스 생명주기 문서](https://developer.android.com/reference/android/car/Car.CarServiceLifecycleListener)는 `ready=false`인 동안 서비스 접근을 중단하도록 설명하고, [Car 문서](https://developer.android.com/reference/android/car/Car)는 `disconnect()` 후 해당 manager가 무효라고 설명한다. 현 구현은 lifecycle listener를 사용하지 않고 폴링하므로 연결 유실을 실시간으로 감지하거나 조회 직후 유실을 배제하지 못한다.
+- 설치된 Android 37 optional `android.car.jar`는 존재한다. 이전 `javap` 조회에서 `getStatus`와 `getPropertyStatus` 선언은 출력됐지만 JAR 접근 거부도 발생해 전체 조회는 성공하지 않았다. 설치 API의 timestamp 선언 및 Pleos 런타임의 API·갱신 계약은 이번에 독립 확인하지 못했고 `getStatus()`는 교체하지 않았다.
+- 보강: 앱의 poll 시작 시각을 `observedAt`으로 하여 긴 동기 조회 후 결과가 새로운 폴링으로 취급되지 않게 하고, 조회 완료 시 연결이 끊겼거나 시계 순서가 잘못되면 빈 증거를 반환한다. 기존 2.5초는 **폴링 시간 제한**이며 개별 속성 신선도 보증이 아니다. 연결 판정 직후 끊김, P에서 D로 변하는 중 순차 읽기, 반환된 과거·미래·서로 다른 속성 timestamp, UX 제한의 신선성은 여전히 해결되지 않았다. 현재 이 경우에도 게이트가 허용될 가능성을 배제할 수 없다.
+- Fake 단위 테스트는 주차·D·속도·미상 값, 오래 걸린 폴링·미래 시작 시각, 연결 유실·재연결을 모델링하도록 추가했다. 이 테스트는 속성 timestamp를 받지 않아 오래된/미래/불일치 속성 timestamp의 차단을 검증하지 않는다. 테스트·빌드·기기/실차 신호 검증은 미실행이다. 계약과 별도 기기에서 시간 갱신·상태 전이·연결 유실을 확인한 뒤 속성별 증거와 처리 정책을 설계해야 한다.
+
 ## 2026-11-08 Vehicle SDK 안전 차단 적용
 
 - 실제 앱의 `VehicleSdkAccess.enabled`는 모든 빌드에서 `false`다. `WiperReader`, `VehicleHealthReader`(문 위치·잠금, 안전벨트·워셔액, 네 문 점검), `VehicleDoorReader`의 Vehicle 생성은 공통 `create`를 통과하며 차단 상태에서 팩토리를 실행하지 않는다. 초기화·capability/get·release도 호출할 인스턴스가 없다. 진단의 차량 상태 화면도 같은 reader와 차단 표시를 사용한다. 기존 설치 APK는 이 변경이 반영되지 않는다.

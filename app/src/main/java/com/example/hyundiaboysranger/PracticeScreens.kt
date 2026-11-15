@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
@@ -92,7 +93,11 @@ fun PracticeScreen(detailed: Boolean = true, backLabelResource: Int = R.string.c
     Text(stringResource(R.string.wiper_reading, readingText))
     readResult?.let { if (it !is SignalResult.Value) Text(signalStatus(it)) }
     Text(stringResource(R.string.wiper_safety_notice))
-    Button(onClick = {
+    WiperStartControl(
+        sdkAvailable = VehicleSdkAccess.enabled,
+        startAllowed = progress == PracticeProgress.READY || progress == PracticeProgress.COMPLETE,
+        restarting = progress == PracticeProgress.COMPLETE,
+    ) {
         reading = null; readResult = null; progress = PracticeProgress.WAIT_OFF
         val id = UUID.randomUUID().toString()
         attemptId = id
@@ -102,9 +107,6 @@ fun PracticeScreen(detailed: Boolean = true, backLabelResource: Int = R.string.c
             reviewMessage = if (!success && reviewStatus == ReviewStorageStatus.NORMAL) resources.getString(R.string.review_wiper_start_failed) else ""
             success
         } else null
-    }, enabled = VehicleSdkAccess.enabled && (progress == PracticeProgress.READY || progress == PracticeProgress.COMPLETE),
-        modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) {
-        Text(stringResource(if (progress == PracticeProgress.COMPLETE) R.string.wiper_restart else R.string.wiper_start))
     }
     val running = progress != PracticeProgress.READY && progress != PracticeProgress.COMPLETE
     LaunchedEffect(running) {
@@ -154,6 +156,21 @@ fun PracticeScreen(detailed: Boolean = true, backLabelResource: Int = R.string.c
     }, enabled = !stopping, modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum)) { Text(stringResource(if (running) R.string.wiper_stop else backLabelResource)) }
     Text(stringResource(R.string.other_lessons_title), style = MaterialTheme.typography.titleLarge)
     ExtraLesson.entries.forEach { lesson -> ExtraLessonGuide(lesson) }
+}
+
+@Composable
+internal fun WiperStartControl(sdkAvailable: Boolean, startAllowed: Boolean, restarting: Boolean, onStart: () -> Unit) {
+    val blockedReason = stringResource(R.string.wiper_start_safety_blocked)
+    if (!sdkAvailable) Text(blockedReason)
+    Button(
+        onClick = onStart,
+        enabled = sdkAvailable && startAllowed,
+        modifier = Modifier.sizeIn(minHeight = DesignTokens.touchMinimum).semantics {
+            if (!sdkAvailable) stateDescription = blockedReason
+        },
+    ) {
+        Text(stringResource(if (restarting) R.string.wiper_restart else R.string.wiper_start))
+    }
 }
 
 @Composable

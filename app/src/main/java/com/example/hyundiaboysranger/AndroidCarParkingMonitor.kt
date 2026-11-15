@@ -36,16 +36,19 @@ internal class AndroidCarParkingMonitor(private val context: Context) {
                 return@withContext ParkingEvidence()
             }
             wasConnected = true
+            val pollStartedAt = SystemClock.elapsedRealtime()
             val properties = active.getCarManager(Car.PROPERTY_SERVICE) as CarPropertyManager
             val ux = active.getCarManager(Car.CAR_UX_RESTRICTION_SERVICE) as CarUxRestrictionsManager
             val gear = properties.getProperty<Int>(VehiclePropertyIds.GEAR_SELECTION, 0)
             val speed = properties.getProperty<Float>(VehiclePropertyIds.PERF_VEHICLE_SPEED, 0)
             val restriction = ux.currentCarUxRestrictions
-            ParkingEvidence(
+            parkingEvidenceFromPoll(
+                connectedAfter = active.isConnected,
+                startedAt = pollStartedAt,
+                completedAt = SystemClock.elapsedRealtime(),
                 park = if (gear.status == CarPropertyValue.STATUS_AVAILABLE) gear.value == VehicleGear.GEAR_PARK else null,
                 speed = if (speed.status == CarPropertyValue.STATUS_AVAILABLE) speed.value else null,
                 unrestricted = restriction != null && !restriction.isRequiresDistractionOptimization && restriction.activeRestrictions == 0,
-                observedAt = SystemClock.elapsedRealtime(),
             )
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: LinkageError) { ParkingEvidence() }

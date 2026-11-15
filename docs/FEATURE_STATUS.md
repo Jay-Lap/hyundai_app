@@ -1,5 +1,109 @@
 # 기능 및 출시 준비 상태 — Phase 0 진행 중
 
+## 2026-11-08 주차 제한 화면 조회값 표현 보강
+
+- 사용자 터미널의 이전 화면 빌드 성공 이후 독립 후속 변경: 주차 제한 화면의 기어·화면 사용 여부를 `true`/`false` 대신 `P단`/`P단 아님`, `허용`/`제한`으로 표시하고 미확인은 그대로 둔다. 관측 시각이 있는 값에는 마지막 조회값이며 현재와 다를 수 있다는 안내를 추가했다. UI 표현만 바꾸었으며 주차 FeatureGate와 차량 신호 로직은 변경하지 않았다.
+- 표시 전용 Compose 테스트에 불리언 표시와 마지막 조회값 안내 검증을 추가하고 기존 미확인 표시 테스트를 수정했다. 사용자 데이터·실제 SDK를 읽지 않는다. 문자열 XML 파싱·리소스 중복 확인과 `git diff --check` 통과.
+- 이전 `parking-notice-ui-init.gradle` 사용자 성공 보고는 이 후속 변경 전 결과다. 후속 변경의 단위 테스트·debug/demo/release 빌드·계측 APK 컴파일·lint는 미실행이며, 기존 에이전트 Gradle 접근 거부를 반복하지 않았다. 사용자 터미널의 별도 출력용 `build/parking-readable-status-init.gradle`을 준비했다. 실제 화면·200%·스크린리더·기기와 실차는 미검증이다.
+
+## 2026-11-08 사용자 터미널 주차 제한 화면 검증
+
+- **사용자 보고:** Android Studio Terminal에서 `parking-notice-ui-init.gradle`을 사용한 별도 출력의 `testDebugUnitTest`, `assembleDebug`, `assembleDemo`, `assembleRelease`, `assembleDebugAndroidTest`, `lintDebug`가 `BUILD SUCCESSFUL`로 종료됐다. 에이전트가 직접 실행하거나 독립 확인한 결과는 아니다. 정확한 테스트 수와 lint 경고 수는 미확인이다.
+- 계측 테스트는 APK 컴파일만 했고 기기에서는 실행하지 않았다. 실제 화면·200%·스크린리더 검증, 주차 속성 신선도 및 실차 안전성은 미검증이다.
+
+## 2026-11-08 주차 제한 안내 화면 정리
+
+- 독립 화면 작업: 주차 제한 화면의 문구를 문자열 리소스로 이관하고 표시 부분을 `ParkingLockedNotice`로 분리했다. 좁은 화면에서 스크롤할 수 있게 했으며, 선택 라이브러리 미확인과 호환성 오류가 같은 경로로 들어오므로 특정 Pleos 이미지에 라이브러리가 없다고 단정하던 문구를 차량 연결 기능을 확인하지 못했다는 안내로 바꿨다. 주차 판정·신호 조회·Vehicle SDK 안전 차단은 변경하지 않았다.
+- 280×220dp·글자 200%에서 미확인 상태와 안내에 스크롤로 접근하는 표시 전용 Compose 테스트를 작성했다. 사용자 저장소·차량 SDK는 사용하지 않으며 기존 주차 신호 Fake 시나리오를 반복하지 않는다.
+- 문자열 XML 파싱·신규 이름 중복 확인과 `git diff --check` 통과. 이 변경 후 테스트·debug/demo/release 빌드·계측 APK 컴파일·lint는 미실행이다. 기존 에이전트 Gradle 배포본 접근 거부를 반복하지 않았으며 사용자 터미널 별도 출력용 `build/parking-notice-ui-init.gradle`을 준비했다. 실제 화면·200%·스크린리더·기기·실차 검증은 미실행이다. 사용자 데이터와 기존 APK는 변경하지 않았다.
+
+## 2026-11-08 사용자 터미널 가상 주차 계약 검증
+
+- **사용자 보고:** Android Studio Terminal에서 `parking-hypothesis-check-init.gradle`을 사용한 별도 출력의 `testDebugUnitTest`, `assembleDebug`, `assembleDemo`, `assembleRelease`, `lintDebug`가 `BUILD SUCCESSFUL`로 종료됐다. 에이전트가 직접 실행하거나 독립 확인한 결과는 아니다. 정확한 테스트 수와 lint 경고 수는 확인되지 않았다.
+- 기기 테스트와 앱 설치는 하지 않았다. Fake의 계약·연결 감시는 가정이며 운영 FeatureGate에 연결되지 않았다. 실제 Pleos 신호·연결 계약과 실차 안전은 미확인이다.
+
+## 2026-11-08 주차 신선도 Fake 가상 계약과 감시
+
+- `ParkingFreshnessModelTest.kt`에 가상의 검증된 신호 계약, 활성 연결 감시, 감시·증거의 연결 세대를 별도로 주입했다. 해당 가정과 P·정지·UX 허용이 모두 맞을 때만 테스트 전용 게이트가 열리며 D단·이동·오류·연결 유실·감시 중단에서 다시 잠기도록 시험을 작성했다. 새 연결은 이전 세대의 가상 증거를 재사용하지 않는다. 계약·감시·증거가 없으면 확인 안 됨이다.
+- 이는 테스트 Fake가 받는 가정이며 실제 Pleos의 timestamp·신호 검증·연결 감시 계약을 확인했다는 뜻이 아니다. ONCHANGE 기어가 변화 없이 주기적으로 갱신된다고 가정하지 않았고 운영 FeatureGate와 Vehicle SDK 동작은 바꾸지 않았다. 운영 게이트의 속성 시각·연결 경합 및 실차 안전은 미검증이다.
+- 별도 출력의 `testDebugUnitTest assembleDebug assembleDemo assembleRelease lintDebug`를 한 번 시도했으나 구성 중 Gradle 배포본 JAR 접근 거부로 종료 코드 1. 컴파일·단위 테스트·빌드·lint 태스크는 시작되지 않았다. 재시도·권한 우회·기기 접근은 하지 않았고 별도 출력용 `build/parking-hypothesis-check-init.gradle`을 준비했다.
+
+## 2026-11-08 사용자 터미널 신선도 Fake 수정 검증
+
+- **사용자 보고:** Android Studio Terminal에서 `parking-freshness-syntax-fix-init.gradle`을 사용한 별도 출력 검증이 `BUILD SUCCESSFUL`로 종료됐다. `testDebugUnitTest`, `assembleDebug`, `assembleDemo`, `assembleRelease`, `lintDebug` 통과. 에이전트가 직접 실행하거나 독립 확인한 결과는 아니다.
+- 정확한 테스트 수와 lint 경고 수는 사용자 보고에서 확인되지 않았다. 기기 실행과 앱 설치는 하지 않았으며, Fake 통과는 실제 Pleos 신호의 신선도나 실차 안전 확인이 아니다.
+- 독립 소스 대조로 테스트 모델은 모든 결과를 차단하며 운영 FeatureGate와 연결되지 않았음을 재확인했다. 기존 게이트의 2.5초 테스트는 앱의 폴링 증거 시각만 대상으로 한다. 200ms 화면 재평가 트리거가 실제 기기의 잠금 지연 상한을 보장하는지도 미검증이다. 구체적인 테스트 공백은 `PARKING_FRESHNESS_VALIDATION.md`에 기록했다.
+
+## 2026-11-08 주차 신선도 Fake 테스트 구문 수정
+
+- 사용자 터미널에서 `parking-freshness-model-init.gradle` 검증이 `BUILD FAILED`로 끝났고 미래 속성 시각 테스트의 반복문 주변 구문 오류가 보고됐다. 테스트의 `for` 괄호 누락을 확인해 두 미래 시각 사례를 별도 목록으로 분리했다. 테스트 시나리오와 보수적 결과를 유지했고 운영 `FeatureGate`에 연결하지 않았다.
+- 수정 후 에이전트의 별도 출력 검증은 Gradle 구성 단계에서 `GeneratedClassCompilationException` 및 배포본 JAR의 `AccessDeniedException`으로 종료 코드 1이었다. 테스트·빌드·lint 태스크가 시작되지 않아 수정 후 컴파일과 테스트 결과는 미확인이다. 접근 거부 후 반복·우회하거나 기기에 접근하지 않았다. 사용자 터미널의 재검증용 설정은 `build/parking-freshness-syntax-fix-init.gradle`이다.
+
+## 2026-11-08 주차 신선도 테스트 전용 Fake 모델
+
+- `ParkingFreshnessModelTest.kt`에 기어·속도의 값·상태·timestamp, 조회 시작/완료 시각, 조회 전·중·후 및 현재 연결 상태와 세대, UX 제한을 따로 주입하는 테스트 전용 Fake를 작성했다. P·정지라도 신선도 계약이 없어 확인 안 됨이고, D·이동·불가/오류, 오래된 시각, 미래 시각, 서로 다른 속성 시각, 조회 중·직후 연결 유실과 재연결을 모델링한다. ONCHANGE 기어의 동일 timestamp를 오래된 것으로 단정하지 않는다.
+- 이 모델은 실험적 판정만 표현하며 운영 `FeatureGate`에 연결되지 않았다. 운영 코드는 여전히 속성 timestamp를 읽지 않으므로 오래된 속성·조회 직후 연결 유실을 감지하거나 그때 잠긴다고 보장하지 않는다. Fake는 폴링 중 연결 변화가 관찰된다고 가정하며 Android Car가 해당 감지를 제공한다는 증거가 아니다.
+- 작성한 테스트·빌드는 아직 실행하지 못했다. 직전 에이전트 환경의 Gradle 배포본 접근 거부를 반복하거나 우회하지 않았고 `build/parking-freshness-model-init.gradle`만 사용자 터미널의 별도 출력용으로 준비했다. 실제 차량 데이터·앱 데이터·설치 APK·기기 접근은 없다. 실차 신선도·안전은 미검증이다.
+
+## 2026-11-08 사용자 터미널 주차 폴링 검증
+
+- **사용자 보고:** Android Studio Terminal에서 `parking-poll-check-init.gradle`을 사용한 별도 출력 검증이 `BUILD SUCCESSFUL`로 종료됐다. `testDebugUnitTest`, `assembleDebug`, `assembleDemo`, `assembleRelease`, `lintDebug`가 통과했다. 에이전트가 직접 실행하거나 독립 확인한 결과는 아니다. 테스트 수와 lint 경고 수는 보고되지 않았다.
+- 해당 명령에는 계측 테스트 실행·기기 실행·앱 설치가 포함되지 않았다. 실제 차량 속성 timestamp의 신선도와 조회 직후 연결 유실은 여전히 미검증이다. 이 결과는 속성별 timestamp를 처리하거나 그 불확실성에서 FeatureGate가 잠긴다는 증거가 아니다.
+- 독립 후속 작업으로 `PARKING_FRESHNESS_VALIDATION.md`에 공급자 확인 사항과 별도 Fake·기기 검증 계획을 정리했다. 실행 결과가 아닌 계획이며 코드·사용자 데이터·설치 APK를 변경하거나 기기에 접근하지 않았다.
+
+## 2026-11-08 주차 증거 폴링 시간 보강
+
+- Android Car 기어·속도·UX 조회의 `observedAt`을 완료 시각에서 시작 시각으로 바꿔 느린 조회에 기존 2.5초 FeatureGate 한도를 적용한다. 조회 완료 시 연결이 끊겼거나 시작·완료 시각 순서가 잘못되면 미상으로 처리한다. Fake 테스트를 작성했으나 아직 실행하지 않았다.
+- 공식 문서상 기어는 ONCHANGE, 속도는 CONTINUOUS이며 속성 timestamp는 `elapsedRealtimeNanos()` 기준이다. 변화 없는 기어의 timestamp 갱신과 Pleos 동작은 미확인이라 시간만으로 기어의 신선도를 판단하지 않았다. 구현은 속성별 timestamp를 읽지 않으므로 오래된/미래/서로 다른 속성 시각 및 조회 직후 연결 유실을 탐지하지 못하며, 이 불확실성에서 게이트가 허용되지 않는다고 보장할 수 없다. 상세 근거와 시험 누락은 `SDK_CALL_AUDIT.md` 참조.
+- 기존 Gradle 배포본 접근 거부를 반복하지 않아 이번 단위 테스트·debug/demo/release 빌드·lint는 미실행이며 `build/parking-poll-check-init.gradle`은 사용자 터미널용 별도 출력 설정이다. ADB·에뮬레이터·실차와 실제 차량 신호는 미실행이다. `getStatus()` 및 기존 데이터·설정·APK는 바꾸지 않았다.
+
+## 2026-11-08 주차 API 경고 독립 조사
+
+- `AndroidCarParkingMonitor.kt`의 45·46행은 기어·속도 `CarPropertyValue.status`가 `STATUS_AVAILABLE`일 때만 값을 쓴다. 공식 [CarPropertyValue 문서](https://developer.android.com/reference/android/car/hardware/CarPropertyValue)는 `getStatus()`의 대안으로 `getPropertyStatus()`를 제시하며, 상태가 사용 가능일 때만 값을 사용하라고 설명한다. 프로젝트가 참조하는 Android 37 `android.car.jar`를 `javap`으로 조회했을 때 두 메서드 선언은 출력됐지만 JAR 접근 거부도 발생해 조회 전체가 성공한 것은 아니다. Pleos 런타임의 메서드 지원과 동등 동작은 미확인이므로 주차 코드는 바꾸지 않았다.
+- `ParkingMonitor.kt`의 `PrivateApi`는 선택 공유 라이브러리 `android.car`의 `Car` 존재를 `Class.forName`으로 확인하는 행에 발생한다. 매니페스트는 `android:required="false"`이고, 클래스가 없거나 링크 오류가 나면 빈 주차 증거로 잠긴다. Android 공식 [`uses-library` 문서](https://developer.android.com/guide/topics/manifest/uses-library-element)는 선택 라이브러리의 런타임 존재 확인에 리플렉션을 사용할 수 있다고 설명한다. 이 일반 지침만으로 Pleos의 클래스 노출·호환성이나 lint 경고 해소를 보증하지 않는다.
+- 기어·속도 조회는 IO에서 실행되며 [CarPropertyManager 문서](https://developer.android.com/reference/android/car/hardware/property/CarPropertyManager)는 동기 조회에 수 초가 걸릴 수 있고 메인 스레드 밖에서 실행해야 한다고 안내한다. 현재 관측 시각은 속성 자체의 timestamp가 아니라 읽기 완료 시각이다. 실제 속성 시각과 지연·연결 유실의 영향은 기기 검증이 필요하며 신선도 안전성을 이 조사만으로 보증하지 않는다.
+- 이번 조사는 문서·소스·기존 lint 보고서 읽기이며 신규 빌드·테스트·기기 실행은 하지 않았다. 다음 작업은 Pleos 설치 이미지에서 대체 API의 존재·상태 의미·시간 기준과 불확실 시 잠금을 검증할 수 있는 계약 및 안전한 테스트 환경 확인이다. 현재 경고와 FeatureGate 동작은 유지한다.
+
+## 2026-11-08 사용자 터미널 복습 스냅샷 검증
+
+- **사용자 보고:** Android Studio Terminal에서 `review-copy-visibility-init.gradle`을 사용한 별도 출력 검증이 `BUILD SUCCESSFUL`로 종료됐다. `testDebugUnitTest`, `assembleDebug`, `assembleDemo`, `assembleRelease`, `lintDebug`가 통과했고 `ReviewRepository`의 `copy()` 경고는 출력되지 않았다. `AndroidCarParkingMonitor`의 deprecated 경고는 남았다. 에이전트가 직접 실행하거나 결과를 독립 확인한 것은 아니다.
+- 계측 테스트와 기기 실행은 이번 명령에 포함되지 않았다. 테스트 수와 lint 경고 수는 이번 보고에 없어 미확인이다. 기존 에이전트 접근 거부 기록은 당시 결과로 유지한다.
+
+## 2026-11-08 복습 스냅샷 Kotlin copy 가시성 점검
+
+- `ReviewRepository.kt`의 `ReviewRecoverySnapshot`은 `internal` 생성자를 가진 data class다. 생성자 자체의 내용 검증은 없으며, 손상된 데이터 미리보기 후 초기화할 때 저장 상태가 여전히 손상 상태이고 현재 값이 스냅샷과 동일한지 비교한다. 소스·테스트 전체에서 이 타입의 `copy()` 호출은 찾지 못했다. 기존 `Map` 내용과 비교 방식은 변경하지 않았다.
+- Kotlin 2.2.10 표준 라이브러리에 포함된 `@ConsistentCopyVisibility`를 이 선언에만 적용해 생성된 `copy()`의 가시성을 생성자와 일치시킨다. 이는 전역 경고 억제가 아니라 해당 언어 동작을 선택하는 것이다. 외부 모듈에서 이전 공개 `copy()`에 의존했다면 소스·바이너리 호환성 영향이 있을 수 있으나 이 프로젝트 내 호출은 발견되지 않았다. 복습 저장·마이그레이션·손상/미래 버전·쓰기 결과 불명 처리 코드는 바꾸지 않았다.
+- 변경 후 `git diff --check`는 통과했다. 직전 에이전트 Gradle 실행에서 배포본 JAR 접근 거부가 확인된 환경이므로 같은 실패를 반복하거나 제한을 우회하지 않았고 이번 단위 테스트·debug/demo/release 빌드·lint는 미실행이다. 사용자 터미널용 별도 출력 init 스크립트 `build/review-copy-visibility-init.gradle`을 준비했으며 빌드 결과와 경고 제거 여부는 재검증이 필요하다. 사용자 데이터·기존 APK와 기기는 건드리지 않았다.
+- `AndroidCarParkingMonitor.kt`의 deprecated API는 주차 안전·공식 API 호환성 조사 전이므로 변경하지 않았으며 경고로 남는다. 실제 기기 및 계측 테스트는 미실행이다.
+
+## 2026-11-08 사용자 터미널 와이퍼 안내 수정 검증
+
+- **사용자 보고:** Android Studio Terminal에서 `wiper-import-fix-init.gradle`을 사용한 별도 출력 검증이 `BUILD SUCCESSFUL`로 종료됐다. `testDebugUnitTest`, `assembleDebug`, `assembleDemo`, `assembleRelease`, `assembleDebugAndroidTest`, `lintDebug` 통과. 에이전트가 직접 실행하거나 결과를 독립 확인한 것은 아니다. 테스트 수와 lint 경고 수는 이번 보고에 없어 미확인이다.
+- `assembleDebugAndroidTest`는 계측 테스트 APK 컴파일 결과이며 계측 테스트의 기기 실행은 미실행이다. 앱 설치도 하지 않았다. 실제 화면·접근성·차량 동작의 통과를 의미하지 않는다. 아래 에이전트의 기존 접근 거부 기록은 당시 결과로 유지한다.
+
+## 2026-11-08 와이퍼 안내 계측 테스트 import 수정
+
+- 사용자 로컬 Android Studio Terminal의 별도 출력 빌드에서는 Gradle 구성이 진행됐으나 `WiperStartControlUiTest.kt`의 `assert` 미해결 참조로 테스트 컴파일이 실패했다고 보고됐다. 설치된 Compose UI 테스트 1.10.4 소스에서 해당 API가 `androidx.compose.ui.test`의 `SemanticsNodeInteraction` 확장 함수임을 확인해 테스트에 import만 추가했다. 앱 동작과 SDK 차단 조건은 변경하지 않았다.
+- 에이전트는 별도 `build/wiper-import-fix-output`을 지정해 `testDebugUnitTest assembleDebug assembleDemo assembleRelease assembleDebugAndroidTest lintDebug --offline --no-daemon --stacktrace`를 한 번 시도했으나 종료 코드 1. 구성 단계의 `GeneratedClassCompilationException` 원인은 Gradle 배포본 `lib/gradle-core-api-9.6.0.jar`에 대한 `AccessDeniedException`으로, ZIP 파일 시스템을 닫는 과정에서 발생했다. 권한 거부가 발생해 반복이나 제한 우회는 하지 않았다.
+- 테스트·세 빌드·계측 APK 컴파일·lint 태스크는 이번 에이전트 실행에서 시작되지 않았으므로 수정 후 컴파일 성공 여부와 테스트 수는 미확인이다. 계측 테스트와 기기 검증도 실행하지 않았다. `git diff --check`는 통과했다.
+
+## 2026-11-08 와이퍼 안내 빌드 구성 실패 기록 조사
+
+- 마지막 와이퍼 안내 빌드의 기존 콘솔·Gradle 데몬 로그에는 `GeneratedClassCompilationException: Unable to compile generated classes`만 남아 있고 `Caused by` 체인은 없다. 해당 실행의 첫 번째 원인은 기존 기록만으로 미확인이다.
+- 같은 실행 환경의 **이전 별도 진단** stacktrace에서는 `GeneratedClassCompilationException` 다음 원인이 Gradle 9.6.0 배포본의 `lib/gradle-core-api-9.6.0.jar`에 대한 `java.nio.file.AccessDeniedException`이며, ZIP 파일 시스템을 닫는 과정에서 발생했다. 마지막 실행과 동일한 원인일 가능성은 있으나, 마지막 실행에서 직접 확인한 사실은 아니다. 권한 거부의 구체적 원인은 여전히 미확인이다.
+- `build/wiper-notice-verification-init.gradle`은 `gradle.beforeProject`에서 각 프로젝트의 build directory를 `build/wiper-notice-verification/${p.name}`으로 지정한다. 파일 삭제·앱 설치·데이터 조작 동작은 없으며, 해당 출력 폴더는 마지막 실패 후 생성되지 않았다. Gradle 스크립트 전체와 외부 플러그인의 부수 효과까지 보증하는 근거는 아니다.
+- 이번에는 기존 기록만 읽었으며 Gradle 명령·단위 테스트·빌드·계측 테스트·기기 접근을 실행하지 않았다. 와이퍼 변경의 컴파일과 기기 동작은 계속 미확인이고 사용자 데이터와 기존 APK는 건드리지 않았다.
+
+## 2026-11-08 Pleos 화면 점검 사용자 보고와 와이퍼 안내
+
+- **사용자 보고 확인:** 걱정 상황 선택에서 설명·사전으로 이동하고 경로 준비로 돌아오는 흐름과 관련 안내, 선택 후 복습 기록이 늘지 않는 동작. 설정·복습 복원과 내부 백업·복원도 확인했다. 사용자 유형별 차이는 고령자 ‘오늘 복습’ 카드만 확인했다.
+- **부분 확인:** 글자 200%는 사용자가 확인한 화면에서 통과했으나 화면 이름이 기록되지 않아 확인 화면을 특정하거나 전체 화면 통과로 표시할 수 없다. 주차 FeatureGate는 미실행이다.
+- **사용자 관찰:** 와이퍼 연습 시작 버튼은 비활성이었고 사용자가 비활성 이유를 명확히 찾지 못했다. 앱 크래시는 없었으나 시스템 서비스 종료의 원인과 앱 관련성은 미확인이다.
+- **시작 전 상태:** 설정과 현재 설정의 비교는 미확인이다. 시작 전 값을 추정해 변경하지 않았으며 일치 여부를 단정하지 않는다.
+- **소스 보강:** 기존 차단 문구는 버튼에서 떨어져 있어 시작 버튼 바로 앞에 이유와 설명 열람 가능 안내를 추가하고 버튼의 접근성 상태 설명에도 같은 이유를 제공한다. Vehicle SDK 차단, 연습 완료 판정과 주차 FeatureGate는 유지한다. 별도 화면 컴포넌트의 200%·좁은 화면·비활성 상태·접근성 의미를 확인하는 계측 테스트를 작성했으며 실행 여부는 별도로 기록한다.
+- **이번 검증:** 격리 출력용 init 스크립트와 기존 격리 Gradle 홈에서 `testDebugUnitTest assembleDebug assembleDemo assembleRelease assembleDebugAndroidTest lintDebug --offline --no-daemon`을 시도했으나 Gradle 구성 중 `GeneratedClassCompilationException`으로 종료 코드 1. 태스크가 실행되지 않아 테스트 수와 lint 결과가 없고 새 코드와 계측 APK의 컴파일도 미확인이다. 이전 접근 거부와 같은 종류의 오류지만 이번 실행의 상세 원인은 재확인하지 않았다. `git diff --check`와 문자열 XML 파싱·중복 확인은 통과했다. Python 실행은 프로그램을 찾지 못해 실패했으며 XML 검사는 PowerShell로 수행했다.
+- **기기 상태:** 위 Pleos 결과는 사용자 보고이며 에이전트가 독립 재실행한 결과가 아니다. 이번 소스 보강 후의 실제 화면·스크린리더·200%·기기·실차 검증은 미실행이다. 사용자 데이터·기존 설치 APK에 접근하거나 이를 변경하지 않았다.
+
 ## 2026-11-08 사용자 로컬 터미널 검증 결과
 
 - 아래는 **사용자가 로컬 터미널에서 직접 실행해 제공한 결과**이며 에이전트가 재실행하거나 독립 확인한 결과가 아니다: `.\gradlew.bat testDebugUnitTest assembleDebug assembleDemo assembleRelease lintDebug --offline --console=plain` → `BUILD SUCCESSFUL` (1분 13초). 단위 테스트 97개 실행, 실패 0·오류 0·스킵 0; debug/demo/release 빌드 성공.
