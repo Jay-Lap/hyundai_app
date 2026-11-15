@@ -62,17 +62,6 @@ Pleos Connect 기반 인카 앱입니다.
 - **SDK:** Pleos Connect Vehicle SDK, NaviHelper SDK
 - **테스트 환경:** Pleos Connect 에뮬레이터 및 Virtual Console
 
-## 팀 구성
-
-**팀명: 동행자**
-
-| 분야 | 담당 업무 |
-| --- | --- |
-| 앱 개발 1 | 프론트엔드 화면 구현 및 디자인 적용 |
-| 앱 개발 2 | 핵심 로직, Pleos SDK 연동 및 통합 |
-| 앱 개발 3 | 설정·복습 데이터 저장 및 복원 |
-| 디자인 1 | 사용자 경험과 화면 흐름 설계 |
-| 디자인 2 | UI 화면과 공통 컴포넌트 디자인 |
 
 ## 유의사항
 
